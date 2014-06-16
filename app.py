@@ -7,6 +7,7 @@ from redis import Redis
 
 AUTH_TOKEN = os.getenv('AUTH_TOKEN')
 app = Flask(__name__)
+app.debug = True
 
 
 #@app.route('/')

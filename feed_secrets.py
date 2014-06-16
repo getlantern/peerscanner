@@ -3,6 +3,8 @@
 import os
 import sys
 
+import yaml
+
 
 here = os.path.dirname(sys.argv[0])
 secret_repo = os.path.join(here, '..', 'too-many-secrets')
@@ -16,4 +18,4 @@ def setcfg(name, secret):
 
 setcfg("CLOUDFLARE_USER", cf_secrets['user'])
 setcfg("CLOUDFLARE_API_KEY", cf_secrets['api_key'])
-setcfg("AUTH_TOKEN", pdr_secrets['auth-token'])
+setcfg("AUTH_TOKEN", pdr_secrets['auth_token'])
