@@ -11,6 +11,7 @@ AUTH_TOKEN = os.getenv('AUTH_TOKEN')
 app = Flask(__name__)
 
 debug = os.getenv('DEBUG') == 'true'
+do_check_auth = False
 
 if debug:
     methods = ['POST', 'GET']
@@ -29,8 +30,11 @@ def login_to_cloudflare():
 redis = login_to_redis()
 cloudflare = login_to_cloudflare()
 
+def get_param(name):
+    return request.args.get(name, request.form.get(name))
+
 def check_auth():
-    if not debug and request.get('auth-token') != AUTH_TOKEN:
+    if do_check_auth and get_param('auth-token') != AUTH_TOKEN:
         abort(403)
 
 def checks_auth(fn):
