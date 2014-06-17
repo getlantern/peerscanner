@@ -1,46 +1,88 @@
 import os
+import traceback
+from functools import wraps
 
 from flask import abort, Flask, request
 from pyflare import Pyflare
-from redis import Redis
+import redis as redis_
 
 
 AUTH_TOKEN = os.getenv('AUTH_TOKEN')
 app = Flask(__name__)
-app.debug = True
 
+debug = os.getenv('DEBUG') == 'true'
 
-#@app.route('/')
-#def main():
-#    return 'Testing 123...'
+if debug:
+    methods = ['POST', 'GET']
+else:
+    methods = ['POST']
 
-#@app.route('/init', methods=['POST'])
-#def init():
-    #if request['auth-token'] != AUTH_TOKEN:
-    #    abort(403)
+def login_to_redis():
+    #url = urlparse.urlparse(os.environ['REDISCLOUD_URL'])
+    #return Redis(host=url.hostname, port=url.port, password=url.password)
+    return redis_.from_url(os.environ['REDISCLOUD_URL'])
 
-@app.route('/write/<data>')
-def write(data):
-    r = redis()
-    r.set('test', data)
-    return 'OK'
-
-@app.route('/read/')
-def read():
-    r = redis()
-    return r.get('test')
-
-@app.route('/cf')
-def cf_():
-    cf = cloudflare()
-    from pprint import pformat
-    return "<br>".join(pformat(each.__dict__)
-                       for each in cf.rec_get_all('getiantem.org'))
-
-def redis():
-    url = urlparse.urlparse(os.environ['REDISCLOUD_URL'])
-    return Redis(host=url.hostname, port=url.port, password=url.password)
-
-def cloudflare():
+def login_to_cloudflare():
     return Pyflare(os.environ['CLOUDFLARE_USER'],
                    os.environ['CLOUDFLARE_API_KEY'])
+
+redis = login_to_redis()
+cloudflare = login_to_cloudflare()
+
+def check_auth():
+    if not debug and request.get('auth-token') != AUTH_TOKEN:
+        abort(403)
+
+def checks_auth(fn):
+    @wraps(fn)
+    def deco(*args, **kw):
+        check_auth()
+        return fn(*args, **kw)
+    return deco
+
+def log_tracebacks(fn):
+    @wraps(fn)
+    def deco(*args, **kw):
+        try:
+            return fn(*args, **kw)
+        except:
+            return "<pre>" + traceback.format_exc() + "</pre>"
+    return deco
+
+def check_and_route(*args, **kw):
+    def deco(fn):
+        ret = checks_auth(fn)
+        if debug:
+            ret = log_tracebacks(ret)
+        return app.route(*args, **kw)(ret)
+    return deco
+
+@check_and_route('/register', methods=methods)
+def register():
+    return "TBD"
+
+@check_and_route('/')
+def main():
+    return "Hi... nothing much to see here."
+
+@check_and_route('/write/<data>')
+def write(data):
+    redis.set('test', data)
+    return 'OK'
+
+@check_and_route('/read/')
+def read():
+    return redis.get('test')
+
+@check_and_route('/cf')
+@log_tracebacks
+def cf_():
+    from pprint import pformat
+    return ("<pre>"
+            +"\n".join(pformat(each)
+                       for each in cloudflare.rec_load_all('getiantem.org')
+                       if each['display_name'] == 'email')
+            +"</pre>")
+
+
+
