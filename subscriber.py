@@ -1,17 +1,21 @@
-#!/usr/bin/env python
-
-import sys
+from pprint import pprint
 import time
 
-import redis as redis_
+import lib
+
+redis = lib.login_to_redis()
+#cloudflare = lib.login_to_cloudflare()
 
 
-def subscribe():
-    redis = redis_.from_url(os.environ['REDISCLOUD_URL'])
+def run():
+    sub = redis.pubsub()
+    sub.subscribe("test")
+    for item in sub.listen():
+        # Ignore 'subscribe' events
+        if item['type'] == 'message':
+            print "got one!"
+            pprint(item)
 
 
 if __name__ == '__main__':
-    for x in range(10):
-        print "DONG", x
-        sys.stdout.flush()
-        time.sleep(2)
+    run()
