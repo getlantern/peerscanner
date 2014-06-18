@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# Assumes a copy of the too-many-secrets repo as a sibling of the directory
+# where this is contained.
+#
 # To import this config for running locally:
 #
 #    heroku plugins:install git://github.com/ddollar/heroku-config.git

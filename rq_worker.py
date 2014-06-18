@@ -5,9 +5,9 @@ from rq import Worker, Queue, Connection
 import lib
 
 
-listen = ['default']
-
 if __name__ == '__main__':
-    with Connection(lib.login_to_redis()):
-        worker = Worker(map(Queue, listen))
+    lib.login_to_redis()
+    lib.login_to_cloudflare()
+    with Connection(lib.redis):
+        worker = Worker([Queue()])
         worker.work()

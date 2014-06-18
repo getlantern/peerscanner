@@ -9,24 +9,31 @@ import lib
 
 app = lib.app = Flask(__name__)
 
-if lib.debug:
+if lib.DEBUG:
     methods = ['POST', 'GET']
 else:
     methods = ['POST']
 
-redis = lib.login_to_redis()
-cloudflare = lib.login_to_cloudflare()
-q = rq.Queue(connection=redis)
+
+lib.login_to_redis()
+lib.login_to_cloudflare()
+q = rq.Queue(connection=lib.redis)
 
 
 @lib.check_and_route('/register', methods=methods)
 def register():
     name = lib.get_param('name')
     ip = lib.get_param('ip')
-    redis_rec = redis.get(name)
+    q.enqueue(lib.register, name, ip)
+    return "OK"
 
+@lib.check_and_route('/unregister', methods=methods)
+def unregister():
+    name = lib.get_param('name')
+    q.enqueue(lib.unregister, name)
+    return "OK"
 
-if lib.debug:
+if lib.DEBUG:
 
     @lib.check_and_route('/')
     def main():
@@ -59,7 +66,7 @@ if lib.debug:
         from pprint import pformat
         return ("<pre>"
                 +"\n".join(pformat(each)
-                           for each in cloudflare.rec_load_all('getiantem.org')
+                           for each in lib.cloudflare.rec_load_all('getiantem.org')
                            if each['display_name'] == 'email')
                 +"</pre>")
 
