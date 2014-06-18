@@ -29,4 +29,5 @@ def setcfg(name, secret):
 setcfg("CLOUDFLARE_USER", cf_secrets['user'])
 setcfg("CLOUDFLARE_API_KEY", cf_secrets['api_key'])
 setcfg("AUTH_TOKEN", pdr_secrets['auth_token'])
+setcfg("WEB_CONCURRENCY", 2)
 setcfg("DEBUG", 'false')
