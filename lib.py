@@ -27,6 +27,10 @@ def check_auth():
     if do_check_auth and get_param('auth-token') != AUTH_TOKEN:
         abort(403)
 
+def echo(txt):
+    print "RQ got message:", txt
+    return repr(txt) + ' processed by RQ'
+
 def checks_auth(fn):
     @wraps(fn)
     def deco(*args, **kw):

@@ -1,6 +1,8 @@
 import os
+import time
 
 from flask import abort, Flask, request
+import rq
 
 import lib
 
@@ -14,6 +16,7 @@ else:
 
 redis = lib.login_to_redis()
 cloudflare = lib.login_to_cloudflare()
+q = rq.Queue(connection=redis)
 
 
 @lib.check_and_route('/register', methods=methods)
@@ -42,6 +45,14 @@ if lib.debug:
     def publish(msg):
         redis.publish('test', msg)
         return "Sent %s to redis." % msg
+
+    @lib.check_and_route('/rq/<msg>')
+    def send_to_rq(msg):
+        job = q.enqueue(lib.echo, msg)
+        while job.result is None:
+            print "Got a None result"
+            time.sleep(1)
+        return "Sent %r to rq, got %r." % (msg, job.result)
 
     @lib.check_and_route('/cf')
     def cf_():
