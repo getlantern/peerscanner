@@ -10,19 +10,21 @@ lib.login_to_redis()
 def run():
     print "starting subscriber"
     sub = lib.redis.pubsub()
-    sub.subscribe("test")
+    sub.subscribe("test", "xyzzy")
     done = [False]
     def handler(signum, frame):
         print "handling SIGTERM"
+        redis = lib.login_to_redis()
         done[0] = True
-        sub.unsubscribe()
+        redis.publish('xyzzy', 'kill')
+        print "handled"
     signal.signal(signal.SIGTERM, handler)
     for item in sub.listen():
-        if item['type'] == 'unsubscribe':
-            print "Got unsubscribe."
-        if item['type'] == 'message':
+        if item['type'] == 'message' and item['channel'] == test:
             print "got one!"
             pprint(item)
+        if item['channel'] == 'xyzzy':
+            print "Got a xyzzy", item
         if done[0]:
             print "BYE!"
             break
