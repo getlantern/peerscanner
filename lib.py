@@ -1,5 +1,7 @@
+from contextlib import contextmanager
 from datetime import datetime
 import os
+import time
 import traceback
 from functools import wraps
 
@@ -16,33 +18,34 @@ CF_ROUND_ROBIN_SUBDOMAIN = 'peerroundrobin'
 OWN_RECID_KEY = 'own_recid'
 ROUND_ROBIN_RECID_KEY = 'rr_recid'
 DO_CHECK_AUTH = not DEBUG
+NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
 redis = None
 cloudflare = None
 
 
 def register(name, ip):
-    rh = redis.hgetall(redis_key(name))
+    rh = redis.hgetall(rh_key(name))
     if rh:
         refresh_record(name, ip, rh)
     else:
         add_new_record(name, ip)
 
 def unregister(name):
-    rh = redis.hgetall(redis_key(name))
+    rh = redis.hgetall(rh_key(name))
     if not rh:
         print "***ERROR: trying to unregister non existent name: %r" % name
         return
     for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, ROUND_ROBIN_RECID_KEY),
                            (name, OWN_RECID_KEY)]:
         cloudflare.rec_delete(CF_ZONE, rh[key])
-    redis.delete(redis_key(name))
+    with transaction() as rt:
+        rt.delete(rh_key(name))
+        rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
     print "record deleted OK"
 
 def refresh_record(name, ip, rh):
-    print "refreshing record for %s (%s), redis hash %s" % (name,
-                                                            ip,
-                                                            rh)
+    print "refreshing record for %s (%s), redis hash %s" % (name, ip, rh)
     if rh['ip'] == ip:
         print "IP is alright; leaving cloudflare alone"
     else:
@@ -56,20 +59,21 @@ def refresh_record(name, ip, rh):
                                 subdomain,
                                 ip,
                                 service_mode=1)
-    redis.hmset(redis_key(name), {'timestamp': redis_timestamp(),
-                                  'ip': ip})
+    with transaction() as rt:
+        rt.hmset(rh_key(name), {'last_updated': redis_datetime(), 'ip': ip})
+        rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
     print "record updated OK"
 
 def add_new_record(name, ip):
     print "adding new record for %s (%s)" % (name, ip)
-    hs = {"ip": ip}
+    rh = {"ip": ip}
     for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, 'rr_recid'),
                            (name, 'own_recid')]:
         response = cloudflare.rec_new(CF_ZONE,
                                       'A',
                                       subdomain,
                                       ip)
-        hs[key] = recid = response['response']['rec']['obj']['rec_id']
+        rh[key] = recid = response['response']['rec']['obj']['rec_id']
         # Set service_mode to "orange cloud".  For some reason we can't do
         # this on rec_new.
         cloudflare.rec_edit(CF_ZONE,
@@ -78,15 +82,28 @@ def add_new_record(name, ip):
                             subdomain,
                             ip,
                             service_mode=1)
-    hs['timestamp'] = redis_timestamp()
-    redis.hmset(redis_key(name), hs)
+    rh['last_updated'] = redis_datetime()
+    with transaction() as rt:
+        rt.hmset(rh_key(name), rh)
+        rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
     print "record added OK"
 
-def redis_key(name):
-    return 'cf.%s' % name
+@contextmanager
+def transaction():
+    txn = redis.pipeline(transaction=True)
+    yield txn
+    txn.execute()
+
+def rh_key(name):
+    return 'cf:%s' % name
+
+def redis_datetime():
+    "Human-readable version, for debugging."
+    return str(datetime.utcnow())
 
 def redis_timestamp():
-    return str(datetime.utcnow())
+    "Seconds since epoch, used for sorting."
+    return time.time()
 
 def login_to_redis():
     global redis
