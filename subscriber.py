@@ -1,6 +1,7 @@
 from pprint import pprint
 import signal
 import time
+import traceback
 
 import lib
 
@@ -20,7 +21,7 @@ def run():
         print "handled"
     signal.signal(signal.SIGTERM, handler)
     for item in sub.listen():
-        if item['type'] == 'message' and item['channel'] == test:
+        if item['type'] == 'message' and item['channel'] == 'test':
             print "got one!"
             pprint(item)
         if item['channel'] == 'xyzzy':
@@ -31,4 +32,7 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    try:
+        run()
+    except:
+        traceback.print_exc()
