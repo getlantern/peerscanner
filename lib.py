@@ -20,6 +20,9 @@ OWN_RECID_KEY = 'own_recid'
 ROUND_ROBIN_RECID_KEY = 'rr_recid'
 DO_CHECK_AUTH = not DEBUG
 NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
+MINUTE = 60
+CHECK_STALE_PERIOD = 1 * MINUTE
+STALE_TIME = 5 * MINUTE
 
 cloudflare = None
 fastly = None
@@ -44,26 +47,27 @@ def create_fastly_backend(name, ip, port):
     print "registering fastly backend %r at %s:%s" % (name, ip, port)
     rh = {'ip': ip, 'port': port}
     svcid = fastly_svcid()
-    version = fastly_version()
-    try:
-        fastly.create_condition(svcid,
-                                version,
-                                name,
-                                'REQUEST',
-                                'req.http.host == "%s.%s"' % (name, DOMAIN))
-    except FastlyError:
-        # Maybe we have already created this condition, probably in a previous
-        # failed attempt to create this backend.
-        print "Error while trying to create condition; ignoring."
-        traceback.print_exc()
-    fastly.create_backend(svcid,
-                          version,
-                          name,
-                          ip,
-                          port=port,
-                          auto_loadbalance=True,
-                          request_condition=name,
-                          comment="added by peerdnsreg")
+    with fastly_version() as version:
+        try:
+            fastly.create_condition(svcid,
+                                    version,
+                                    name,
+                                    'REQUEST',
+                                    'req.http.host == "%s.%s"' % (name,
+                                                                  DOMAIN))
+        except FastlyError:
+            # Maybe we have already created this condition, probably in
+            # a previous failed attempt to create this backend.
+            print "Error while trying to create condition; ignoring."
+            traceback.print_exc()
+        fastly.create_backend(svcid,
+                              version,
+                              name,
+                              ip,
+                              port=port,
+                              auto_loadbalance=True,
+                              request_condition=name,
+                              comment="added by peerdnsreg")
     rh['last_updated'] = redis_datetime()
     with transaction() as rt:
         rt.hmset(rh_key(name), rh)
@@ -76,11 +80,12 @@ def update_fastly_backend(name, ip, port, rh):
         print "backend is up-to-date; leaving Fastly alone"
     else:
         print "backend needs updating"
-        fastly.update_backend(fastly_svcid(),
-                              fastly_version(),
-                              name,
-                              address=ip,
-                              port=port)
+        with fastly_version() as version:
+            fastly.update_backend(fastly_svcid(),
+                                  version,
+                                  name,
+                                  address=ip,
+                                  port=port)
     with transaction() as rt:
         rt.hmset(rh_key(name), {'last_updated': redis_datetime(),
                                 'ip': ip,
@@ -90,9 +95,9 @@ def update_fastly_backend(name, ip, port, rh):
 
 def delete_fastly_backend(name):
     svcid = fastly_svcid()
-    version = fastly_version()
-    fastly.delete_backend(svcid, version, name)
-    fastly.delete_condition(svcid, version, name)
+    with fastly_version() as version:
+        fastly.delete_backend(svcid, version, name)
+        fastly.delete_condition(svcid, version, name)
     with transaction() as rt:
         rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
@@ -101,8 +106,23 @@ def delete_fastly_backend(name):
 def fastly_svcid():
     return os.environ['FASTLY_SERVICE_ID']
 
+@contextmanager
 def fastly_version():
-    return int(os.environ['FASTLY_VERSION'])
+    edit_version = int(os.environ['FASTLY_VERSION'])
+    yield edit_version
+    new_version = fastly.clone_version(fastly_svcid(), edit_version)
+    fastly.activate_version(fastly_svcid(), new_version.number)
+
+def remove_stale_entries():
+    cutoff = time.time() - STALE_TIME
+    for name in redis.zrangebyscore(NAME_BY_TIMESTAMP_KEY,
+                                    '-inf',
+                                    cutoff):
+        try:
+            unregister(name)
+        except:
+            print "Exception unregistering %s:" % name
+            traceback.print_exc()
 
 # Cloudflare stuff commented out for future reference.  Some refactoring will
 # be in order when we want to bring this back.
