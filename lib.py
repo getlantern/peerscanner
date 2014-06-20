@@ -5,88 +5,160 @@ import time
 import traceback
 from functools import wraps
 
+from fastly import connect as connect_to_fastly, FastlyError
 from flask import abort, request
-import redis as redis_module
 import pyflare
+import redis as redis_module
 
 
 app = None
 AUTH_TOKEN = os.getenv('AUTH_TOKEN')
 DEBUG = os.getenv('DEBUG') == 'true'
-CF_ZONE = 'getiantem.org'
+DOMAIN = 'getiantem.org'
 CF_ROUND_ROBIN_SUBDOMAIN = 'peerroundrobin'
 OWN_RECID_KEY = 'own_recid'
 ROUND_ROBIN_RECID_KEY = 'rr_recid'
 DO_CHECK_AUTH = not DEBUG
 NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
-redis = None
 cloudflare = None
+fastly = None
+redis = None
 
 
-def register(name, ip):
+def register(name, ip, port):
     rh = redis.hgetall(rh_key(name))
     if rh:
-        refresh_record(name, ip, rh)
+        update_fastly_backend(name, ip, port, rh)
     else:
-        add_new_record(name, ip)
+        create_fastly_backend(name, ip, port)
 
 def unregister(name):
     rh = redis.hgetall(rh_key(name))
     if not rh:
         print "***ERROR: trying to unregister non existent name: %r" % name
         return
-    for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, ROUND_ROBIN_RECID_KEY),
-                           (name, OWN_RECID_KEY)]:
-        cloudflare.rec_delete(CF_ZONE, rh[key])
+    delete_fastly_backend(name)
+
+def create_fastly_backend(name, ip, port):
+    print "registering fastly backend %r at %s:%s" % (name, ip, port)
+    rh = {'ip': ip, 'port': port}
+    svcid = fastly_svcid()
+    version = fastly_version()
+    try:
+        fastly.create_condition(svcid,
+                                version,
+                                name,
+                                'REQUEST',
+                                'req.http.host == "%s.%s"' % (name, DOMAIN))
+    except FastlyError:
+        # Maybe we have already created this condition, probably in a previous
+        # failed attempt to create this backend.
+        print "Error while trying to create condition; ignoring."
+        traceback.print_exc()
+    fastly.create_backend(svcid,
+                          version,
+                          name,
+                          ip,
+                          port=port,
+                          auto_loadbalance=True,
+                          request_condition=name,
+                          comment="added by peerdnsreg")
+    rh['last_updated'] = redis_datetime()
+    with transaction() as rt:
+        rt.hmset(rh_key(name), rh)
+        rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
+    print "backend created OK"
+
+def update_fastly_backend(name, ip, port, rh):
+    print "updating fastly backend %r at %s:%s, %r" % (name, ip, port, rh)
+    if rh['ip'] == ip and rh['port'] == port:
+        print "backend is up-to-date; leaving Fastly alone"
+    else:
+        print "backend needs updating"
+        fastly.update_backend(fastly_svcid(),
+                              fastly_version(),
+                              name,
+                              address=ip,
+                              port=port)
+    with transaction() as rt:
+        rt.hmset(rh_key(name), {'last_updated': redis_datetime(),
+                                'ip': ip,
+                                'port': port})
+        rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
+    print "backend updated OK"
+
+def delete_fastly_backend(name):
+    svcid = fastly_svcid()
+    version = fastly_version()
+    fastly.delete_backend(svcid, version, name)
+    fastly.delete_condition(svcid, version, name)
     with transaction() as rt:
         rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
     print "record deleted OK"
 
-def refresh_record(name, ip, rh):
-    print "refreshing record for %s (%s), redis hash %s" % (name, ip, rh)
-    if rh['ip'] == ip:
-        print "IP is alright; leaving cloudflare alone"
-    else:
-        print "refreshing IP in cloudflare"
-        for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN,
-                                ROUND_ROBIN_RECID_KEY),
-                                (name, OWN_RECID_KEY)]:
-            cloudflare.rec_edit(CF_ZONE,
-                                'A',
-                                rh[key],
-                                subdomain,
-                                ip,
-                                service_mode=1)
-    with transaction() as rt:
-        rt.hmset(rh_key(name), {'last_updated': redis_datetime(), 'ip': ip})
-        rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
-    print "record updated OK"
+def fastly_svcid():
+    return os.environ['FASTLY_SERVICE_ID']
 
-def add_new_record(name, ip):
-    print "adding new record for %s (%s)" % (name, ip)
-    rh = {"ip": ip}
-    for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, 'rr_recid'),
-                           (name, 'own_recid')]:
-        response = cloudflare.rec_new(CF_ZONE,
-                                      'A',
-                                      subdomain,
-                                      ip)
-        rh[key] = recid = response['response']['rec']['obj']['rec_id']
-        # Set service_mode to "orange cloud".  For some reason we can't do
-        # this on rec_new.
-        cloudflare.rec_edit(CF_ZONE,
-                            'A',
-                            recid,
-                            subdomain,
-                            ip,
-                            service_mode=1)
-    rh['last_updated'] = redis_datetime()
-    with transaction() as rt:
-        rt.hmset(rh_key(name), rh)
-        rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
-    print "record added OK"
+def fastly_version():
+    return int(os.environ['FASTLY_VERSION'])
+
+# Cloudflare stuff commented out for future reference.  Some refactoring will
+# be in order when we want to bring this back.
+#
+#def add_cf_record(name, ip):
+#    print "adding new record for %s (%s)" % (name, ip)
+#    rh = {"ip": ip}
+#    for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, 'rr_recid'),
+#                           (name, 'own_recid')]:
+#        response = cloudflare.rec_new(DOMAIN,
+#                                      'A',
+#                                      subdomain,
+#                                      ip)
+#        rh[key] = recid = response['response']['rec']['obj']['rec_id']
+#        # Set service_mode to "orange cloud".  For some reason we can't do
+#        # this on rec_new.
+#        cloudflare.rec_edit(DOMAIN,
+#                            'A',
+#                            recid,
+#                            subdomain,
+#                            ip,
+#                            service_mode=1)
+#    rh['last_updated'] = redis_datetime()
+#    with transaction() as rt:
+#        rt.hmset(rh_key(name), rh)
+#        rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
+#    print "record added OK"
+#
+#def refresh_cf_record(name, ip, rh):
+#    print "refreshing record for %s (%s), redis hash %s" % (name, ip, rh)
+#    if rh['ip'] == ip:
+#        print "IP is alright; leaving cloudflare alone"
+#    else:
+#        print "refreshing IP in cloudflare"
+#        for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN,
+#                                ROUND_ROBIN_RECID_KEY),
+#                                (name, OWN_RECID_KEY)]:
+#            cloudflare.rec_edit(DOMAIN,
+#                                'A',
+#                                rh[key],
+#                                subdomain,
+#                                ip,
+#                                service_mode=1)
+#    with transaction() as rt:
+#        rt.hmset(rh_key(name), {'last_updated': redis_datetime(), 'ip': ip})
+#        rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
+#    print "record updated OK"
+#
+#def remove_cf_record(name, rh):
+#    for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, ROUND_ROBIN_RECID_KEY),
+#                           (name, OWN_RECID_KEY)]:
+#        cloudflare.rec_delete(DOMAIN, rh[key])
+#    with transaction() as rt:
+#        rt.delete(rh_key(name))
+#        rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
+#    print "record deleted OK"
 
 @contextmanager
 def transaction():
@@ -108,6 +180,12 @@ def redis_timestamp():
 def login_to_redis():
     global redis
     redis = redis_module.from_url(os.environ['REDISCLOUD_URL'])
+
+def login_to_fastly():
+    global fastly
+    fastly = connect_to_fastly(os.environ['FASTLY_API_KEY'])
+    fastly.login(os.environ['FASTLY_USER'],
+                 os.environ['FASTLY_PASSWORD'])
 
 def login_to_cloudflare():
     global cloudflare

@@ -20,8 +20,9 @@ def run():
         raise Done
     signal.signal(signal.SIGTERM, handler)
     try:
+        #lib.login_to_cloudflare()
+        lib.login_to_fastly()
         lib.login_to_redis()
-        lib.login_to_cloudflare()
         while True:
             remove_stale_entries()
             time.sleep(SLEEP_TIME)

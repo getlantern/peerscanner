@@ -16,7 +16,6 @@ else:
 
 
 lib.login_to_redis()
-lib.login_to_cloudflare()
 q = rq.Queue(connection=lib.redis)
 
 
@@ -24,7 +23,8 @@ q = rq.Queue(connection=lib.redis)
 def register():
     name = lib.get_param('name')
     ip = lib.get_param('ip')
-    q.enqueue(lib.register, name, ip)
+    port = lib.get_param('port')
+    q.enqueue(lib.register, name, ip, port)
     return "OK"
 
 @lib.check_and_route('/unregister', methods=methods)
@@ -32,8 +32,3 @@ def unregister():
     name = lib.get_param('name')
     q.enqueue(lib.unregister, name)
     return "OK"
-
-@lib.check_and_route('/publish/<msg>')
-def publish(msg):
-    nsubscribers = lib.redis.publish('test', msg)
-    return "Published %r to %d subscribers, OK." % (msg, nsubscribers)
