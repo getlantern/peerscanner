@@ -67,6 +67,7 @@ def create_fastly_backend(name, ip, port):
                               port=port,
                               auto_loadbalance=True,
                               request_condition=name,
+                              healthcheck="HEAD OK",
                               comment="added by peerdnsreg")
     rh['last_updated'] = redis_datetime()
     with transaction() as rt:
