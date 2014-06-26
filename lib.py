@@ -138,12 +138,11 @@ def create_director(version):
 
     fv = fastly.get_version(svcid, version)
     # Add all existing backends to director
-    for backend in fv.backends {
+    for backend in fv.backends:
         fastly.create_director_backend(svcid,
                                        version,
                                        DIRECTOR_NAME,
                                        backend.name)
-    }
 
 def remove_stale_entries():
     cutoff = time.time() - STALE_TIME
