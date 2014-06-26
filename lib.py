@@ -68,7 +68,7 @@ def create_fastly_backend(name, ip, port):
                               name,
                               ip,
                               port=port,
-                              auto_loadbalance=False,
+                              auto_loadbalance=True,
                               weight=100,
                               request_condition=name,
                               healthcheck="HEAD OK",
@@ -121,7 +121,7 @@ def fastly_version():
     edit_version = int(os.environ['FASTLY_VERSION'])
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
-    create_load_balancer(new_version)
+    # create_load_balancer(new_version)
     fastly.activate_version(fastly_svcid(), new_version.number)
 
 def create_load_balancer(fastly_version):
