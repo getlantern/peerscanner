@@ -133,7 +133,7 @@ def fastly_version():
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
     fastly.activate_version(fastly_svcid(), new_version.number)
 
-def create_load_balancer(version):
+def update_load_balancer(version):
     svcid = fastly_svcid()
     try:
         fastly.create_director(svcid,
