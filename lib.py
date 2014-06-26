@@ -159,6 +159,7 @@ def create_load_balancer(version):
             except:
                 # If we couldn't create the backend, that probably means we
                 # already had it, don't worry
+                pass
 
 
 def remove_stale_entries():
