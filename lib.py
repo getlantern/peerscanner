@@ -136,7 +136,7 @@ def create_load_balancer(fastly_version):
         fastly.create_director_backend(svcid,
                                        fastly_version.number,
                                        DIRECTOR_NAME,
-                                       backend.name)
+                                       backend)
 
 def remove_stale_entries():
     cutoff = time.time() - STALE_TIME
