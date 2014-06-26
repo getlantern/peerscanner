@@ -148,7 +148,7 @@ def update_load_balancer(version):
 
     # Add all fallback proxy backends to director (fallback proxies must have
     # names starting with fp-)
-    fastly_version = fastly.get_version(version)
+    fastly_version = fastly.get_version(svcid, version)
     for backend in fastly_version.backends:
         if backend.startswith(FP_PREFIX):
             try:
