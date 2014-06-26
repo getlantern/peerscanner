@@ -23,6 +23,9 @@ NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 MINUTE = 60
 CHECK_STALE_PERIOD = 1 * MINUTE
 STALE_TIME = 5 * MINUTE
+DIRECTOR_NAME = "PeerAutoDirector"
+DIRECTOR_QUORUM_PERCENTAGE = 1
+DIRECTOR_RETRIES = 10
 
 cloudflare = None
 fastly = None
@@ -73,6 +76,12 @@ def create_fastly_backend(name, ip, port):
                               first_byte_timeout=30000,
                               between_bytes_timeout=80000,
                               comment="added by peerdnsreg")
+
+        fastly.create_director_backend(svcid,
+                                       version,
+                                       DIRECTOR_NAME,
+                                       name)
+
     rh['last_updated'] = redis_datetime()
     with transaction() as rt:
         rt.hmset(rh_key(name), rh)
@@ -103,6 +112,7 @@ def delete_fastly_backend(name):
     with fastly_version() as version:
         fastly.delete_backend(svcid, version, name)
         fastly.delete_condition(svcid, version, name)
+        fastly.delete_director_backend(svcid, version, DIRECTOR_NAME, name)
     with transaction() as rt:
         rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
@@ -117,6 +127,23 @@ def fastly_version():
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
     fastly.activate_version(fastly_svcid(), new_version.number)
+
+def create_director(version):
+    svcid = fastly_svcid()
+    fastly.create_director(svcid,
+                           version,
+                           DIRECTOR_NAME,
+                           quorum=DIRECTOR_QUORUM_PERCENTAGE,
+                           retries=DIRECTOR_RETRIES)
+
+    fv = fastly.get_version(svcid, version)
+    # Add all existing backends to director
+    for backend in fv.backends {
+        fastly.create_director_backend(svcid,
+                                       version,
+                                       DIRECTOR_NAME,
+                                       backend.name)
+    }
 
 def remove_stale_entries():
     cutoff = time.time() - STALE_TIME
