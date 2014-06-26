@@ -26,6 +26,7 @@ STALE_TIME = 5 * MINUTE
 DIRECTOR_NAME = "PeerAutoDirector"
 DIRECTOR_QUORUM_PERCENTAGE = 1
 DIRECTOR_RETRIES = 10
+FP_PREFIX = "fp-"
 
 cloudflare = None
 fastly = None
@@ -83,6 +84,8 @@ def create_fastly_backend(name, ip, port):
                               between_bytes_timeout=80000,
                               comment="added by peerdnsreg")
 
+        fastly.create_director_backend(svcid, version, DIRECTOR_NAME, name)
+
     rh['last_updated'] = redis_datetime()
     with transaction() as rt:
         rt.hmset(rh_key(name), rh)
@@ -113,6 +116,7 @@ def delete_fastly_backend(name):
     with fastly_version() as version:
         fastly.delete_backend(svcid, version, name)
         fastly.delete_condition(svcid, version, name)
+        fastly.delete_director_backend(svcid, version, DIRECTOR_NAME, name)
     with transaction() as rt:
         rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
@@ -124,25 +128,38 @@ def fastly_svcid():
 @contextmanager
 def fastly_version():
     edit_version = int(os.environ['FASTLY_VERSION'])
+    update_load_balancer(edit_version)
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
-    create_load_balancer(new_version)
     fastly.activate_version(fastly_svcid(), new_version.number)
 
-def create_load_balancer(fastly_version):
+def create_load_balancer(version):
     svcid = fastly_svcid()
-    fastly.create_director(svcid,
-                           fastly_version.number,
-                           DIRECTOR_NAME,
-                           quorum=DIRECTOR_QUORUM_PERCENTAGE,
-                           retries=DIRECTOR_RETRIES)
+    try:
+        fastly.create_director(svcid,
+                               version,
+                               DIRECTOR_NAME,
+                               quorum=DIRECTOR_QUORUM_PERCENTAGE,
+                               retries=DIRECTOR_RETRIES)
+    except:
+        # If we couldn't create the director, that means we probably already had
+        # it, don't worry
+        pass
 
-    # Add all backends to director
+    # Add all fallback proxy backends to director (fallback proxies must have
+    # names starting with fp-)
+    fastly_version = fastly.get_version(version)
     for backend in fastly_version.backends:
-        fastly.create_director_backend(svcid,
-                                       fastly_version.number,
-                                       DIRECTOR_NAME,
-                                       backend)
+        if backend.startswith(FP_PREFIX):
+            try:
+                fastly.create_director_backend(svcid, 
+                                               version,
+                                               DIRECTOR_NAME,
+                                               backend)
+            except:
+                # If we couldn't create the backend, that probably means we
+                # already had it, don't worry
+
 
 def remove_stale_entries():
     cutoff = time.time() - STALE_TIME
