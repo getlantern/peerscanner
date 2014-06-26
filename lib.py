@@ -77,11 +77,6 @@ def create_fastly_backend(name, ip, port):
                               between_bytes_timeout=80000,
                               comment="added by peerdnsreg")
 
-        fastly.create_director_backend(svcid,
-                                       version,
-                                       DIRECTOR_NAME,
-                                       name)
-
     rh['last_updated'] = redis_datetime()
     with transaction() as rt:
         rt.hmset(rh_key(name), rh)
@@ -112,7 +107,6 @@ def delete_fastly_backend(name):
     with fastly_version() as version:
         fastly.delete_backend(svcid, version, name)
         fastly.delete_condition(svcid, version, name)
-        fastly.delete_director_backend(svcid, version, DIRECTOR_NAME, name)
     with transaction() as rt:
         rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
@@ -126,21 +120,21 @@ def fastly_version():
     edit_version = int(os.environ['FASTLY_VERSION'])
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
+    create_load_balancer(new_version)
     fastly.activate_version(fastly_svcid(), new_version.number)
 
-def create_director(version):
+def create_load_balancer(fastly_version):
     svcid = fastly_svcid()
     fastly.create_director(svcid,
-                           version,
+                           fastly_version.number,
                            DIRECTOR_NAME,
                            quorum=DIRECTOR_QUORUM_PERCENTAGE,
                            retries=DIRECTOR_RETRIES)
 
-    fv = fastly.get_version(svcid, version)
-    # Add all existing backends to director
-    for backend in fv.backends:
+    # Add all backends to director
+    for backend in fastly_version.backends:
         fastly.create_director_backend(svcid,
-                                       version,
+                                       fastly_version.number,
                                        DIRECTOR_NAME,
                                        backend.name)
 
