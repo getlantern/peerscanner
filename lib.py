@@ -121,7 +121,7 @@ def fastly_version():
     edit_version = int(os.environ['FASTLY_VERSION'])
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
-    # create_load_balancer(new_version)
+    create_load_balancer(new_version)
     fastly.activate_version(fastly_svcid(), new_version.number)
 
 def create_load_balancer(fastly_version):
