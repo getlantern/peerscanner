@@ -116,7 +116,6 @@ def delete_fastly_backend(name):
     with fastly_version() as version:
         fastly.delete_backend(svcid, version, name)
         fastly.delete_condition(svcid, version, name)
-        fastly.delete_director_backend(svcid, version, DIRECTOR_NAME, name)
     with transaction() as rt:
         rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
