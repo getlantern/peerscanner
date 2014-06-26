@@ -34,6 +34,7 @@ redis = None
 
 def register(name, ip, port):
     port = int(port)
+    print "Port is %s" % type(port)
     if port <= 0 or port > 65535:
         print "***ERROR: trying to register with invalid port: %s" % port
         return
