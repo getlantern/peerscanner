@@ -34,9 +34,9 @@ redis = None
 
 
 def register(name, ip, port):
-    port = int(port)
-    if port <= 0 or port > 65535:
-        print "***ERROR: trying to register with invalid port: %s" % port
+    int_port = int(port)
+    if int_port <= 0 or int_port > 65535:
+        print "***ERROR: trying to register with invalid port: %s" % int_port
         return
 
     rh = redis.hgetall(rh_key(name))
