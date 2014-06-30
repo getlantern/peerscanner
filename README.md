@@ -2,17 +2,17 @@
 
 peerdnsreg is a HTTP-based service for registering and unregistering flashlight servers so they can be used by the flashlight clients that run in Lantern installations when in get mode.
 
-Pedantic note for the fastidious: for agility of exposition we say "flashlight server" to refer loosely the machine where the flashlight server is running.  Currently, the calls described below are made not by the flashlight program itself but by the Lantern client that is controlling it.
+Pedantic note for the fastidious: for agility of exposition we say "flashlight server" to refer loosely to the machine where the flashlight server is running.  Currently, the calls described below are made not by the flashlight program itself but by the Lantern client that is controlling it.
 
 ## Operation
 
-flashlight servers[1] call a peerdnsreg endpoint periodically to advertise their availability and up-to-date contact details.  If they have a chance, they also inform peerdnsreg when they become unavailable.  Otherwise, peerdnsreg will automatically unregister a server from which it hasn't received updates for too long.
+flashlight servers call a peerdnsreg endpoint periodically to advertise their availability and up-to-date contact details.  If they have a chance, they also inform peerdnsreg when they become unavailable.  Otherwise, peerdnsreg will automatically unregister a server from which it hasn't received updates for too long.
 
 ### Registering
 
 A flashlight server registers itself by making a POST request with the `/register` path.  The request parameters for this call are:
 
-- `name`: a string identifier that is not equal to that of any other machine registering in peerdnsreg. It must be a valid subdomain name, *and* a valid [VCL](https://www.varnish-cache.org/docs/3.0/reference/vcl.html) identifier when prepended `fl-`.  To be on the safe side, use only ASCII digits and lowercase letters.  Lantern peer clients use their `instanceId`, which meets these conditions.
+- `name`: a string identifier that is not equal to that of any other machine registering in peerdnsreg. It must be a valid subdomain name, *and* a valid [VCL](https://www.varnish-cache.org/docs/3.0/reference/vcl.html) identifier when prepended `f_`.  To be on the safe side, use only ASCII digits and lowercase letters.  Lantern peer clients use their `instanceId`, which meets these conditions.
 
 - `ip`: the public IP of the flashlight server (e.g. `54.230.90.149`.)
 
@@ -24,7 +24,7 @@ peerdnsreg will unregister any servers from which it hasn't received a `/registe
 
 ### Unregistration
 
-If it has a chance, a flashlight server will announce that it is becoming unavailable by calling the `/unregister` endpoint.  The only parameter is the `name` it provided when registering.
+If it has a chance, a flashlight server will announce that it is becoming unavailable by making a POST request with path `/unregister`.  The only parameter is the `name` it provided back when it registered.
 
 ## Deploying
 
