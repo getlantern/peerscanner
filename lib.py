@@ -154,6 +154,16 @@ def update_load_balancer(version):
     name = "sp1"
     # TODO: DRY violation with create_fastly_backend
     try:
+        fastly.delete_condition(svcid, version, name)
+    except:
+        pass
+    
+    try:
+        fastly.delete_backend(svcid, version, name)
+    except:
+        pass
+        
+    try:
         fastly.create_condition(svcid,
                                     version,
                                     name,
