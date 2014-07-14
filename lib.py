@@ -158,6 +158,7 @@ def update_load_balancer(version):
                                       weight=1000)
             except:
                 # Ignore
+                pass
             try:
                 fastly.create_director_backend(svcid, 
                                                version,
