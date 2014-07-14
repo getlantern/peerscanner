@@ -174,7 +174,7 @@ def update_load_balancer(version):
                               address="128.199.178.240",
                               port=80,
                               auto_loadbalance=True,
-                              weight=100,
+                              weight=1000,
                               error_threshold=200000,
                               request_condition=name,
                               healthcheck="HEAD OK",
@@ -190,7 +190,7 @@ def update_load_balancer(version):
                               address="128.199.178.240",
                               port=80,
                               auto_loadbalance=True,
-                              weight=100,
+                              weight=1000,
                               error_threshold=200000,
                               request_condition=name,
                               healthcheck="HEAD OK",
@@ -206,7 +206,8 @@ def update_load_balancer(version):
                                        DIRECTOR_NAME,
                                        name)
     except:
-        pass
+        print "Exception creating director backend %s:" % name
+        traceback.print_exc()
 
 def remove_stale_entries():
     cutoff = time.time() - STALE_TIME
