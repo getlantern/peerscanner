@@ -153,24 +153,19 @@ def update_load_balancer(version):
     name = "sp1"
     # TODO: DRY violation with create_fastly_backend
     try:
-        fastly.delete_condition(svcid, version, name)
-    except:
-        pass
-    
-    try:
-        fastly.delete_backend(svcid, version, name)
-    except:
-        pass
-
-    try:
         fastly.create_condition(svcid,
-                                    version,
-                                    name,
-                                    'REQUEST',
-                                    'req.http.host == "%s.%s"' % (name,
-                                                                  DOMAIN))
+                                version,
+                                name,
+                                'REQUEST',
+                                'req.http.host == "%s.%s"' % (name,
+                                                              DOMAIN))
     except:
-        pass
+        fastly.update_condition(svcid,
+                                version,
+                                name,
+                                'REQUEST',
+                                'req.http.host == "%s.%s"' % (name,
+                                                              DOMAIN))
 
     try:    
         fastly.create_backend(svcid,
@@ -189,13 +184,27 @@ def update_load_balancer(version):
                               between_bytes_timeout=80000,
                               comment="fallback added by peerdnsreg")
     except:
-        pass
+        fastly.update_backend(svcid,
+                              version,
+                              name,
+                              "128.199.178.240",
+                              port=80,
+                              auto_loadbalance=True,
+                              weight=100,
+                              error_threshold=200000,
+                              request_condition=name,
+                              healthcheck="HEAD OK",
+                              max_conn=20000,
+                              connect_timeout=10000,
+                              first_byte_timeout=30000,
+                              between_bytes_timeout=80000,
+                              comment="fallback added by peerdnsreg")
 
     try:
         fastly.create_director_backend(svcid, 
-                                               version,
-                                               DIRECTOR_NAME,
-                                               backend)
+                                       version,
+                                       DIRECTOR_NAME,
+                                       backend)
     except:
         pass
 
