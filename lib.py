@@ -170,7 +170,7 @@ def update_load_balancer(version):
                               connect_timeout=10000,
                               first_byte_timeout=30000,
                               between_bytes_timeout=80000,
-                              comment="fallback added by peerdnsreg"
+                              comment="fallback added by peerdnsreg")
         
     except:
         pass
