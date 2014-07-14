@@ -171,24 +171,13 @@ def update_load_balancer(version):
                               first_byte_timeout=30000,
                               between_bytes_timeout=80000,
                               comment="fallback added by peerdnsreg")
-        
-    except:
-        pass
-    # Add all fallback proxy backends to director (fallback proxies must have
-    # names starting with fp-)
-    fastly_version = fastly.get_version(svcid, version)
-    for backend in fastly_version.backends:
-        if backend.startswith(FP_PREFIX):
-            try:
-                fastly.create_director_backend(svcid, 
+
+        fastly.create_director_backend(svcid, 
                                                version,
                                                DIRECTOR_NAME,
                                                backend)
-            except:
-                # If we couldn't create the backend, that probably means we
-                # already had it, don't worry
-                pass
-
+    except:
+        pass
 
 def remove_stale_entries():
     cutoff = time.time() - STALE_TIME
