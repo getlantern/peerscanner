@@ -148,6 +148,7 @@ def update_load_balancer(version):
 
     # Create fallback proxy
     name = "sp1"
+    # TODO: DRY violation with create_fastly_backend
     try:
         fastly.create_condition(svcid,
                                     version,
@@ -169,7 +170,7 @@ def update_load_balancer(version):
                               connect_timeout=10000,
                               first_byte_timeout=30000,
                               between_bytes_timeout=80000,
-                              comment="added by peerdnsreg"
+                              comment="fallback added by peerdnsreg"
         
     except:
         pass
