@@ -167,6 +167,14 @@ def update_load_balancer(version):
                                 statement='req.http.host == "%s.%s"' % (name,
                                                               DOMAIN))
 
+    try:
+        fastly.delete_director_backend(svcid, 
+                                       version,
+                                       DIRECTOR_NAME,
+                                       name)
+    except:
+        pass
+        
     try:    
         fastly.create_backend(svcid,
                               version,
