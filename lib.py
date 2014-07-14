@@ -138,7 +138,7 @@ def update_load_balancer(version):
     try:
         fastly.delete_director(svcid, version, DIRECTOR_NAME)
     except:
-        pass
+        traceback.print_exc()
     try:
         fastly.create_director(svcid,
                                version,
@@ -166,7 +166,7 @@ def update_load_balancer(version):
                               "128.199.178.240",
                               port=80,
                               auto_loadbalance=True,
-                              weight=1000,
+                              weight=100,
                               error_threshold=200000,
                               request_condition=name,
                               healthcheck="HEAD OK",
