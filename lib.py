@@ -76,7 +76,7 @@ def create_fastly_backend(name, ip, port):
                               port=port,
                               auto_loadbalance=True,
                               weight=100,
-                              error_threshold=10,
+                              error_threshold=200000,
                               request_condition=name,
                               healthcheck="HEAD OK",
                               max_conn=2000,
