@@ -8,7 +8,12 @@
 #    heroku plugins:install git://github.com/ddollar/heroku-config.git
 #    heroku config:pull --overwrite
 #
-# And then you may want to change DEBUG to 'true'.
+# This will create a .venv file in this folder, with a local copy of the
+# environment variables.  You may want to change the following settings
+# for local testing:
+#
+# DEBUG=true
+# REDISCLOUD_URL=redis://localhost
 
 import os
 import sys
