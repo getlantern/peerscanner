@@ -158,7 +158,8 @@ def update_load_balancer(version):
                                       weight=1000)
             except:
                 # Ignore
-                pass
+                print "Exception updating backend %s:" % backend
+                traceback.print_exc()
             try:
                 fastly.create_director_backend(svcid, 
                                                version,
