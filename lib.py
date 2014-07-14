@@ -156,22 +156,22 @@ def update_load_balancer(version):
         fastly.create_condition(svcid,
                                 version,
                                 name,
-                                'REQUEST',
-                                'req.http.host == "%s.%s"' % (name,
+                                type='REQUEST',
+                                statement='req.http.host == "%s.%s"' % (name,
                                                               DOMAIN))
     except:
         fastly.update_condition(svcid,
                                 version,
                                 name,
-                                'REQUEST',
-                                'req.http.host == "%s.%s"' % (name,
+                                type='REQUEST',
+                                statement='req.http.host == "%s.%s"' % (name,
                                                               DOMAIN))
 
     try:    
         fastly.create_backend(svcid,
                               version,
                               name,
-                              "128.199.178.240",
+                              address="128.199.178.240",
                               port=80,
                               auto_loadbalance=True,
                               weight=100,
@@ -187,7 +187,7 @@ def update_load_balancer(version):
         fastly.update_backend(svcid,
                               version,
                               name,
-                              "128.199.178.240",
+                              address="128.199.178.240",
                               port=80,
                               auto_loadbalance=True,
                               weight=100,
