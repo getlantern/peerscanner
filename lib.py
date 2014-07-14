@@ -151,6 +151,14 @@ def update_load_balancer(version):
     for backend in fastly_version.backends:
         if backend.startswith(FP_PREFIX):
             try:
+                fastly.update_backend(svcid,
+                                      version,
+                                      backend,
+                                      error_threshold=200,
+                                      weight=1000)
+            except:
+                # Ignore
+            try:
                 fastly.create_director_backend(svcid, 
                                                version,
                                                DIRECTOR_NAME,
