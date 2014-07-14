@@ -204,7 +204,7 @@ def update_load_balancer(version):
         fastly.create_director_backend(svcid, 
                                        version,
                                        DIRECTOR_NAME,
-                                       backend)
+                                       name)
     except:
         pass
 
