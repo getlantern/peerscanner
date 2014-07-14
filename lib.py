@@ -76,6 +76,7 @@ def create_fastly_backend(name, ip, port):
                               port=port,
                               auto_loadbalance=True,
                               weight=100,
+                              error_threshold=10,
                               request_condition=name,
                               healthcheck="HEAD OK",
                               max_conn=2000,
@@ -145,6 +146,33 @@ def update_load_balancer(version):
         # it, don't worry
         pass
 
+    # Create fallback proxy
+    name = "sp1"
+    try:
+        fastly.create_condition(svcid,
+                                    version,
+                                    name,
+                                    'REQUEST',
+                                    'req.http.host == "%s.%s"' % (name,
+                                                                  DOMAIN))
+        fastly.create_backend(svcid,
+                              version,
+                              name,
+                              "128.199.178.240",
+                              port=80,
+                              auto_loadbalance=True,
+                              weight=1000,
+                              error_threshold=200,
+                              request_condition=name,
+                              healthcheck="HEAD OK",
+                              max_conn=2000,
+                              connect_timeout=10000,
+                              first_byte_timeout=30000,
+                              between_bytes_timeout=80000,
+                              comment="added by peerdnsreg"
+        
+    except:
+        pass
     # Add all fallback proxy backends to director (fallback proxies must have
     # names starting with fp-)
     fastly_version = fastly.get_version(svcid, version)
