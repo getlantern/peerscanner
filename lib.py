@@ -24,7 +24,7 @@ MINUTE = 60
 CHECK_STALE_PERIOD = 1 * MINUTE
 STALE_TIME = 5 * MINUTE
 DIRECTOR_NAME = "PeerAutoDirector"
-DIRECTOR_QUORUM_PERCENTAGE = 1
+DIRECTOR_QUORUM_PERCENTAGE = 0
 DIRECTOR_RETRIES = 10
 FP_PREFIX = "fp-"
 
@@ -135,6 +135,10 @@ def fastly_version():
 
 def update_load_balancer(version):
     svcid = fastly_svcid()
+    try:
+        fastly.delete_director(svcid, version, DIRECTOR_NAME)
+    except:
+        pass
     try:
         fastly.create_director(svcid,
                                version,
