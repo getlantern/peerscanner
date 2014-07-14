@@ -79,7 +79,7 @@ def create_fastly_backend(name, ip, port):
                               error_threshold=200000,
                               request_condition=name,
                               healthcheck="HEAD OK",
-                              max_conn=10,
+                              max_conn=100,
                               connect_timeout=10000,
                               first_byte_timeout=30000,
                               between_bytes_timeout=80000,
