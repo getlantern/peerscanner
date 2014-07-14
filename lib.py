@@ -136,19 +136,18 @@ def fastly_version():
 def update_load_balancer(version):
     svcid = fastly_svcid()
     try:
-        fastly.delete_director(svcid, version, DIRECTOR_NAME)
-    except:
-        traceback.print_exc()
-    try:
         fastly.create_director(svcid,
                                version,
                                DIRECTOR_NAME,
                                quorum=DIRECTOR_QUORUM_PERCENTAGE,
                                retries=DIRECTOR_RETRIES)
     except:
-        # If we couldn't create the director, that means we probably already had
-        # it, don't worry
-        pass
+        # Couldn't create, update instead
+        fastly.update_director(svcid,
+                               version,
+                               DIRECTOR_NAME,
+                               quorum=DIRECTOR_QUORUM_PERCENTAGE,
+                               retries=DIRECTOR_RETRIES)
 
     # Create fallback proxy
     name = "sp1"
