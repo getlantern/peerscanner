@@ -162,7 +162,7 @@ def update_load_balancer(version):
         fastly.delete_backend(svcid, version, name)
     except:
         pass
-        
+
     try:
         fastly.create_condition(svcid,
                                     version,
@@ -170,6 +170,10 @@ def update_load_balancer(version):
                                     'REQUEST',
                                     'req.http.host == "%s.%s"' % (name,
                                                                   DOMAIN))
+    except:
+        pass
+
+    try:    
         fastly.create_backend(svcid,
                               version,
                               name,
@@ -185,7 +189,10 @@ def update_load_balancer(version):
                               first_byte_timeout=30000,
                               between_bytes_timeout=80000,
                               comment="fallback added by peerdnsreg")
+    except:
+        pass
 
+    try:
         fastly.create_director_backend(svcid, 
                                                version,
                                                DIRECTOR_NAME,
