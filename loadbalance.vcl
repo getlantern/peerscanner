@@ -102,11 +102,8 @@ director FallbackAutoDirector random {
 }
 
 sub vcl_recv {
-  set req.backend = PeerAutoDirector;
+  set req.backend = FallbackAutoDirector;
 
-  if( req.http.host == "sp4.getiantem.org" ) {
-    set req.backend = F_sp4;
-  }
   if( req.http.host == "sp1.getiantem.org" ) {
     set req.backend = F_sp1;
   }
@@ -115,6 +112,9 @@ sub vcl_recv {
   }
   if( req.http.host == "sp3.getiantem.org" ) {
     set req.backend = F_sp3;
+  }
+  if( req.http.host == "sp4.getiantem.org" ) {
+    set req.backend = F_sp4;
   }
   #FASTLY recv
 }
