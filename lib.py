@@ -128,16 +128,16 @@ def fastly_svcid():
 
 @contextmanager
 def fastly_version():
+    svcid = fastly_svcid()
     edit_version = int(os.environ['FASTLY_VERSION'])
-    update_load_balancer(edit_version)
+    update_load_balancer(edit_version, svcid)
     init_fallbacks(edit_version, svcid)
     have_initialized_fallbacks = True
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
-    fastly.activate_version(fastly_svcid(), new_version.number)
+    fastly.activate_version(svcid, new_version.number)
 
-def update_load_balancer(version):
-    svcid = fastly_svcid()
+def update_load_balancer(version, svcid):
     try:
         fastly.create_director(svcid,
                                version,
