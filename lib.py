@@ -135,19 +135,20 @@ def fastly_version():
     fastly.activate_version(svcid, new_version.number)
 
 def update_load_balancer(version, svcid):
-    try:
-        fastly.create_director(svcid,
-                               version,
-                               DIRECTOR_NAME,
-                               quorum=DIRECTOR_QUORUM_PERCENTAGE,
-                               retries=DIRECTOR_RETRIES)
-    except:
-        # Couldn't create, update instead
-        fastly.update_director(svcid,
-                               version,
-                               DIRECTOR_NAME,
-                               quorum=DIRECTOR_QUORUM_PERCENTAGE,
-                               retries=DIRECTOR_RETRIES)
+    # try:
+    #     fastly.create_director(svcid,
+    #                            version,
+    #                            DIRECTOR_NAME,
+    #                            quorum=DIRECTOR_QUORUM_PERCENTAGE,
+    #                            retries=DIRECTOR_RETRIES)
+    # except:
+    #     # Couldn't create, update instead
+    #     fastly.update_director(svcid,
+    #                            version,
+    #                            DIRECTOR_NAME,
+    #                            quorum=DIRECTOR_QUORUM_PERCENTAGE,
+    #                            retries=DIRECTOR_RETRIES)
+    fastly.delete_director(svcid, version, DIRECTOR_NAME)
 
 def init_fallbacks(version, svcid):
     print "Initializing fallback proxies"
