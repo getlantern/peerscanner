@@ -128,6 +128,7 @@ def fastly_svcid():
 
 @contextmanager
 def fastly_version():
+    global have_initialized_fallbacks
     edit_version = int(os.environ['FASTLY_VERSION'])
     update_load_balancer(edit_version)
     if not have_initialized_fallbacks:
