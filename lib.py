@@ -149,8 +149,10 @@ def update_load_balancer(version):
                                quorum=DIRECTOR_QUORUM_PERCENTAGE,
                                retries=DIRECTOR_RETRIES)
 
-    update_fallback_proxy(version, svcid, "sp1", "128.199.178.240")
+    update_fallback_proxy(version, svcid, "sp1", "128.199.176.82")
     update_fallback_proxy(version, svcid, "sp2", "128.199.178.148")
+    update_fallback_proxy(version, svcid, "sp3", "128.199.140.101")
+    update_fallback_proxy(version, svcid, "sp4", "128.199.140.103")
 
 def update_fallback_proxy(version, svcid, name, ip):
     # TODO: DRY violation with create_fastly_backend
@@ -176,7 +178,7 @@ def update_fallback_proxy(version, svcid, name, ip):
                                 'REQUEST',
                                 'req.http.host == "%s.%s"' % (name,
                                                               DOMAIN))
-        
+
         fastly.create_backend(svcid,
                               version,
                               name,
