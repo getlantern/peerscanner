@@ -83,6 +83,24 @@ backend F_sp4 {
       }
 }
 
+director FallbackAutoDirector random {
+   .quorum = 1%;
+   .retries = 10;
+   {
+    .backend = F_sp1;
+    .weight  = 100;
+   }{
+    .backend = F_sp2;
+    .weight  = 100;
+   }{
+    .backend = F_sp3;
+    .weight  = 100;
+   }{
+    .backend = F_sp4;
+    .weight  = 100;
+   }
+}
+
 sub vcl_recv {
   set req.backend = PeerAutoDirector;
 

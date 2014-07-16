@@ -129,7 +129,7 @@ def fastly_version():
     svcid = fastly_svcid()
     edit_version = int(os.environ['FASTLY_VERSION'])
     update_load_balancer(edit_version, svcid)
-    init_fallbacks(edit_version, svcid)
+    #init_fallbacks(edit_version, svcid)
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
     fastly.activate_version(svcid, new_version.number)
@@ -158,34 +158,34 @@ def init_fallbacks(version, svcid):
 
 def update_fallback_proxy(version, svcid, name, ip):
     # TODO: DRY violation with create_fastly_backend
-    # try:
-    #     fastly.create_condition(svcid,
-    #                             version,
-    #                             name,
-    #                             'REQUEST',
-    #                             'req.http.host == "%s.%s"' % (name,
-    #                                                           DOMAIN))
-    # except:
-    #     pass
+    try:
+        fastly.create_condition(svcid,
+                                version,
+                                name,
+                                'REQUEST',
+                                'req.http.host == "%s.%s"' % (name,
+                                                              DOMAIN))
+    except:
+        pass
 
-    # try:
-    #     fastly.create_backend(svcid,
-    #                           version,
-    #                           name,
-    #                           ip,
-    #                           port=80,
-    #                           auto_loadbalance=True,
-    #                           weight=10000,
-    #                           error_threshold=200000,
-    #                           request_condition=name,
-    #                           healthcheck="HEAD OK",
-    #                           max_conn=20000,
-    #                           connect_timeout=10000,
-    #                           first_byte_timeout=30000,
-    #                           between_bytes_timeout=80000,
-    #                           comment="fallback added by peerdnsreg")
-    # except:
-    #     pass
+    try:
+        fastly.create_backend(svcid,
+                              version,
+                              name,
+                              ip,
+                              port=80,
+                              auto_loadbalance=True,
+                              weight=10000,
+                              error_threshold=200000,
+                              request_condition=name,
+                              healthcheck="HEAD OK",
+                              max_conn=20000,
+                              connect_timeout=10000,
+                              first_byte_timeout=30000,
+                              between_bytes_timeout=80000,
+                              comment="fallback added by peerdnsreg")
+    except:
+        pass
 
     try:
         fastly.create_director_backend(svcid, 
