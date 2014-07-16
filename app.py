@@ -18,6 +18,9 @@ else:
 lib.login_to_redis()
 q = rq.Queue(connection=lib.redis)
 
+# Update load-balancer and fallbacks on startup
+lib.update_load_balancer(int(os.environ['FASTLY_VERSION']))
+
 
 @lib.check_and_route('/register', methods=methods)
 def register():
