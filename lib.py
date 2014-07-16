@@ -130,7 +130,7 @@ def fastly_svcid():
 def fastly_version():
     edit_version = int(os.environ['FASTLY_VERSION'])
     update_load_balancer(edit_version)
-    init_fallbacks(version, svcid)
+    init_fallbacks(edit_version, svcid)
     have_initialized_fallbacks = True
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
@@ -153,6 +153,7 @@ def update_load_balancer(version):
                                retries=DIRECTOR_RETRIES)
 
 def init_fallbacks(version, svcid):
+    global have_initialized_fallbacks
     if not have_initialized_fallbacks:
         update_fallback_proxy(version, svcid, "sp1", "128.199.176.82")
         update_fallback_proxy(version, svcid, "sp2", "128.199.178.148")
