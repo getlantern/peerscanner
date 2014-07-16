@@ -155,6 +155,7 @@ def update_load_balancer(version, svcid):
 def init_fallbacks(version, svcid):
     global have_initialized_fallbacks
     if not have_initialized_fallbacks:
+        print "Initializing fallback proxies"
         update_fallback_proxy(version, svcid, "sp1", "128.199.176.82")
         update_fallback_proxy(version, svcid, "sp2", "128.199.178.148")
         update_fallback_proxy(version, svcid, "sp3", "128.199.140.101")
