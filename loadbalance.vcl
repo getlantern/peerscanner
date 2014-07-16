@@ -7,7 +7,6 @@ backend F_sp1 {
     .max_connections = 20000;
     .between_bytes_timeout = 80s;
     .share_key = "11yqoXJrAAGxPiC07v3q9Z";
-  
       
     .probe = {
         .request = "HEAD / HTTP/1.1" "Host: getiantem.org" "Connection: close""User-Agent: Varnish/fastly (healthcheck)";
@@ -29,7 +28,6 @@ backend F_sp2 {
     .max_connections = 20000;
     .between_bytes_timeout = 80s;
     .share_key = "11yqoXJrAAGxPiC07v3q9Z";
-  
       
     .probe = {
         .request = "HEAD / HTTP/1.1" "Host: getiantem.org" "Connection: close""User-Agent: Varnish/fastly (healthcheck)";
@@ -51,7 +49,6 @@ backend F_sp3 {
     .max_connections = 20000;
     .between_bytes_timeout = 80s;
     .share_key = "11yqoXJrAAGxPiC07v3q9Z";
-  
       
     .probe = {
         .request = "HEAD / HTTP/1.1" "Host: getiantem.org" "Connection: close""User-Agent: Varnish/fastly (healthcheck)";
@@ -73,7 +70,6 @@ backend F_sp4 {
     .max_connections = 20000;
     .between_bytes_timeout = 80s;
     .share_key = "11yqoXJrAAGxPiC07v3q9Z";
-  
       
     .probe = {
         .request = "HEAD / HTTP/1.1" "Host: getiantem.org" "Connection: close""User-Agent: Varnish/fastly (healthcheck)";

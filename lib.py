@@ -27,7 +27,6 @@ DIRECTOR_NAME = "PeerAutoDirector"
 DIRECTOR_QUORUM_PERCENTAGE = 1
 DIRECTOR_RETRIES = 10
 FP_PREFIX = "fp-"
-FASTLY_TEMPLATE_VERSION = 599
 
 cloudflare = None
 fastly = None
@@ -128,7 +127,7 @@ def fastly_svcid():
 @contextmanager
 def fastly_version():
     svcid = fastly_svcid()
-    edit_version = FASTLY_TEMPLATE_VERSION
+    edit_version = int(os.environ['FASTLY_VERSION'])
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
     fastly.activate_version(svcid, new_version.number)
