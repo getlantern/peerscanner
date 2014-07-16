@@ -159,28 +159,16 @@ def init_fallbacks(version, svcid):
 def update_fallback_proxy(version, svcid, name, ip):
     # TODO: DRY violation with create_fastly_backend
     try:
-        fastly.delete_director_backend(svcid, version, DIRECTOR_NAME, name)
-    except:
-        pass
-
-    try:
-        fastly.delete_backend(svcid, version, name)
-    except:
-        pass
-
-    try:
-        fastly.delete_condition(svcid, version, name)
-    except:
-        pass
-
-    try:
         fastly.create_condition(svcid,
                                 version,
                                 name,
                                 'REQUEST',
                                 'req.http.host == "%s.%s"' % (name,
                                                               DOMAIN))
+    except:
+        pass
 
+    try
         fastly.create_backend(svcid,
                               version,
                               name,
@@ -196,12 +184,14 @@ def update_fallback_proxy(version, svcid, name, ip):
                               first_byte_timeout=30000,
                               between_bytes_timeout=80000,
                               comment="fallback added by peerdnsreg")
+    except:
+        pass
 
+    try:
         fastly.create_director_backend(svcid, 
                                        version,
                                        DIRECTOR_NAME,
                                        name)
-
     except:
         print "Exception updating fallback proxy %s:" % name
         traceback.print_exc()
