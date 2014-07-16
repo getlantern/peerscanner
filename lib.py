@@ -148,7 +148,11 @@ def update_load_balancer(version, svcid):
     #                            DIRECTOR_NAME,
     #                            quorum=DIRECTOR_QUORUM_PERCENTAGE,
     #                            retries=DIRECTOR_RETRIES)
-    fastly.delete_director(svcid, version, DIRECTOR_NAME)
+    try:
+        fastly.delete_director(svcid, version, DIRECTOR_NAME)
+    except:
+        print "Exception deleting peer autodirector"
+        traceback.print_exc()
 
 def init_fallbacks(version, svcid):
     print "Initializing fallback proxies"
