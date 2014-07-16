@@ -168,7 +168,7 @@ def update_fallback_proxy(version, svcid, name, ip):
     except:
         pass
 
-    try
+    try:
         fastly.create_backend(svcid,
                               version,
                               name,
