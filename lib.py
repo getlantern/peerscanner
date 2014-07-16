@@ -151,6 +151,7 @@ def update_load_balancer(version):
 
 def init_fallbacks():
     edit_version = int(os.environ['FASTLY_VERSION'])
+    svcid = fastly_svcid()
     update_load_balancer(edit_version)
     update_fallback_proxy(edit_version, svcid, "sp1", "128.199.176.82")
     update_fallback_proxy(edit_version, svcid, "sp2", "128.199.178.148")
