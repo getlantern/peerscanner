@@ -133,12 +133,6 @@ def fastly_version():
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
     fastly.activate_version(fastly_svcid(), new_version.number)
 
-def init_fallbacks():
-    edit_version = int(os.environ['FASTLY_VERSION'])
-    update_load_balancer(edit_version)
-    new_version = fastly.clone_version(fastly_svcid(), edit_version)
-    fastly.activate_version(fastly_svcid(), new_version.number)
-
 def update_load_balancer(version):
     svcid = fastly_svcid()
     try:
@@ -155,10 +149,15 @@ def update_load_balancer(version):
                                quorum=DIRECTOR_QUORUM_PERCENTAGE,
                                retries=DIRECTOR_RETRIES)
 
-    update_fallback_proxy(version, svcid, "sp1", "128.199.176.82")
-    update_fallback_proxy(version, svcid, "sp2", "128.199.178.148")
-    update_fallback_proxy(version, svcid, "sp3", "128.199.140.101")
-    update_fallback_proxy(version, svcid, "sp4", "128.199.140.103")
+def init_fallbacks():
+    edit_version = int(os.environ['FASTLY_VERSION'])
+    update_load_balancer(edit_version)
+    update_fallback_proxy(edit_version, svcid, "sp1", "128.199.176.82")
+    update_fallback_proxy(edit_version, svcid, "sp2", "128.199.178.148")
+    update_fallback_proxy(edit_version, svcid, "sp3", "128.199.140.101")
+    update_fallback_proxy(edit_version, svcid, "sp4", "128.199.140.103")
+    new_version = fastly.clone_version(fastly_svcid(), edit_version)
+    fastly.activate_version(fastly_svcid(), new_version.number)
 
 def update_fallback_proxy(version, svcid, name, ip):
     # TODO: DRY violation with create_fastly_backend
