@@ -20,7 +20,7 @@ q = rq.Queue(connection=lib.redis)
 
 # Update load-balancer and fallbacks on startup
 lib.login_to_fastly()
-lib.update_load_balancer(int(os.environ['FASTLY_VERSION']))
+lib.init_fallbacks()
 
 
 @lib.check_and_route('/register', methods=methods)
