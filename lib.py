@@ -27,6 +27,7 @@ DIRECTOR_NAME = "PeerAutoDirector"
 DIRECTOR_QUORUM_PERCENTAGE = 1
 DIRECTOR_RETRIES = 10
 FP_PREFIX = "fp-"
+FASTLY_TEMPLATE_VERSION = 599
 
 cloudflare = None
 fastly = None
@@ -127,79 +128,10 @@ def fastly_svcid():
 @contextmanager
 def fastly_version():
     svcid = fastly_svcid()
-    edit_version = int(os.environ['FASTLY_VERSION'])
-    update_load_balancer(edit_version, svcid)
-    #init_fallbacks(edit_version, svcid)
+    edit_version = FASTLY_TEMPLATE_VERSION
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
     fastly.activate_version(svcid, new_version.number)
-
-def update_load_balancer(version, svcid):
-    # try:
-    #     fastly.create_director(svcid,
-    #                            version,
-    #                            DIRECTOR_NAME,
-    #                            quorum=DIRECTOR_QUORUM_PERCENTAGE,
-    #                            retries=DIRECTOR_RETRIES)
-    # except:
-    #     # Couldn't create, update instead
-    #     fastly.update_director(svcid,
-    #                            version,
-    #                            DIRECTOR_NAME,
-    #                            quorum=DIRECTOR_QUORUM_PERCENTAGE,
-    #                            retries=DIRECTOR_RETRIES)
-    try:
-        fastly.delete_director(svcid, version, DIRECTOR_NAME)
-    except:
-        print "Exception deleting peer autodirector"
-        traceback.print_exc()
-
-def init_fallbacks(version, svcid):
-    print "Initializing fallback proxies"
-    update_fallback_proxy(version, svcid, "sp1", "128.199.176.82")
-    update_fallback_proxy(version, svcid, "sp2", "128.199.178.148")
-    update_fallback_proxy(version, svcid, "sp3", "128.199.140.101")
-    update_fallback_proxy(version, svcid, "sp4", "128.199.140.103")
-
-def update_fallback_proxy(version, svcid, name, ip):
-    # TODO: DRY violation with create_fastly_backend
-    try:
-        fastly.create_condition(svcid,
-                                version,
-                                name,
-                                'REQUEST',
-                                'req.http.host == "%s.%s"' % (name,
-                                                              DOMAIN))
-    except:
-        pass
-
-    try:
-        fastly.create_backend(svcid,
-                              version,
-                              name,
-                              ip,
-                              port=80,
-                              auto_loadbalance=True,
-                              weight=10000,
-                              error_threshold=200000,
-                              request_condition=name,
-                              healthcheck="HEAD OK",
-                              max_conn=20000,
-                              connect_timeout=10000,
-                              first_byte_timeout=30000,
-                              between_bytes_timeout=80000,
-                              comment="fallback added by peerdnsreg")
-    except:
-        pass
-
-    try:
-        fastly.create_director_backend(svcid, 
-                                       version,
-                                       DIRECTOR_NAME,
-                                       name)
-    except:
-        print "Exception updating fallback proxy %s:" % name
-        traceback.print_exc()
 
 def remove_stale_entries():
     cutoff = time.time() - STALE_TIME
