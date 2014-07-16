@@ -32,8 +32,6 @@ cloudflare = None
 fastly = None
 redis = None
 
-have_initialized_fallbacks = False
-
 def register(name, ip, port):
     int_port = int(port)
     if int_port <= 0 or int_port > 65535:
@@ -132,7 +130,6 @@ def fastly_version():
     edit_version = int(os.environ['FASTLY_VERSION'])
     update_load_balancer(edit_version, svcid)
     init_fallbacks(edit_version, svcid)
-    have_initialized_fallbacks = True
     yield edit_version
     new_version = fastly.clone_version(fastly_svcid(), edit_version)
     fastly.activate_version(svcid, new_version.number)
@@ -153,14 +150,11 @@ def update_load_balancer(version, svcid):
                                retries=DIRECTOR_RETRIES)
 
 def init_fallbacks(version, svcid):
-    global have_initialized_fallbacks
-    if not have_initialized_fallbacks:
-        print "Initializing fallback proxies"
-        update_fallback_proxy(version, svcid, "sp1", "128.199.176.82")
-        update_fallback_proxy(version, svcid, "sp2", "128.199.178.148")
-        update_fallback_proxy(version, svcid, "sp3", "128.199.140.101")
-        update_fallback_proxy(version, svcid, "sp4", "128.199.140.103")
-        have_initialized_fallbacks = True
+    print "Initializing fallback proxies"
+    update_fallback_proxy(version, svcid, "sp1", "128.199.176.82")
+    update_fallback_proxy(version, svcid, "sp2", "128.199.178.148")
+    update_fallback_proxy(version, svcid, "sp3", "128.199.140.101")
+    update_fallback_proxy(version, svcid, "sp4", "128.199.140.103")
 
 def update_fallback_proxy(version, svcid, name, ip):
     # TODO: DRY violation with create_fastly_backend
