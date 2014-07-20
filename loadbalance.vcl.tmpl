@@ -121,7 +121,7 @@ director PeerAutoDirector random {
     .backend = F_sp4;
     .weight  = 10000;
    }{% for peer in peers %}{
-    .backend = F_sp{{ loop.index + 4 }};
+    .backend = F_peer_{{ loop.index + 4 }};
     .weight  = 100;
    }{% endfor %}
 }
@@ -142,9 +142,9 @@ sub vcl_recv {
   if( req.http.host == "sp4.{{ domain }}" ) {
     set req.backend = F_sp4;
   }
-  {% for peer in peers %}
-  if( req.http.host == "sp{{ loop.index + 4 }}.{{ domain }}" ) {
-    set req.backend = F_sp{{ loop.index + 4 }};
+  {% for peer in peers %}{
+  if( req.http.host == "{{ peer }}.{{ domain }}" ) {
+    set req.backend = F_peer_{{ loop.index + 4 }};
   }
   {% endfor %}
   #FASTLY recv
