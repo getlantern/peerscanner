@@ -82,11 +82,11 @@ backend F_sp4 {
       }
 }
 
-{% for peer in peers %}
+{% for key, val in peers.iteritems() %}{% set peer = val|dicter %}
 backend F_sp{{ loop.index + 4 }} {
     .connect_timeout = 20s;
-    .port = "{{ peer.port }}";
-    .host = "{{ peer.host }}";
+    .port = "{{ peer|port }}";
+    .host = "{{ peer|ip }}";
     .first_byte_timeout = 30s;
     .saintmode_threshold = 200000;
     .max_connections = 100;
@@ -123,8 +123,7 @@ director PeerAutoDirector random {
    }{% for peer in peers %}{
     .backend = F_sp{{ loop.index + 4 }};
     .weight  = 100;
-   }
-   {% endfor %}
+   }{% endfor %}
 }
 
 sub vcl_recv {
