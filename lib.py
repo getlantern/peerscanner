@@ -17,7 +17,7 @@ CF_ZONE = 'getiantem.org'
 CF_ROUND_ROBIN_SUBDOMAIN = 'peerroundrobin'
 OWN_RECID_KEY = 'own_recid'
 ROUND_ROBIN_RECID_KEY = 'rr_recid'
-DO_CHECK_AUTH = not DEBUG
+DO_CHECK_AUTH = False #not DEBUG
 NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
 MINUTE = 60
