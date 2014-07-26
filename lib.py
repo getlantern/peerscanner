@@ -20,9 +20,11 @@ ROUND_ROBIN_RECID_KEY = 'rr_recid'
 DO_CHECK_AUTH = not DEBUG
 NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
+MINUTE = 60
+STALE_TIME = 5 * MINUTE
+
 redis = None
 cloudflare = None
-
 
 def register(name, ip):
     rh = redis.hgetall(rh_key(name))
@@ -87,6 +89,18 @@ def add_new_record(name, ip):
         rt.hmset(rh_key(name), rh)
         rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
     print "record added OK"
+
+def remove_stale_entries():
+    cutoff = time.time() - STALE_TIME
+    for name in redis.zrangebyscore(NAME_BY_TIMESTAMP_KEY,
+                                        '-inf',
+                                        cutoff):
+        try:
+            unregister(name)
+            print "Unregistered", name
+        except:
+            print "Exception unregistering %s:" % name
+            traceback.print_exc()
 
 @contextmanager
 def transaction():
