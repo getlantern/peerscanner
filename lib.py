@@ -12,7 +12,7 @@ import pyflare
 
 app = None
 AUTH_TOKEN = os.getenv('AUTH_TOKEN')
-DEBUG = os.getenv('DEBUG') == 'true'
+DEBUG = True # os.getenv('DEBUG') == 'true'
 CF_ZONE = 'getiantem.org'
 CF_ROUND_ROBIN_SUBDOMAIN = 'peerroundrobin'
 OWN_RECID_KEY = 'own_recid'
