@@ -158,5 +158,5 @@ def check_and_route(*args, **kw):
         #ret = checks_auth(fn)
         #if DEBUG:
         #    ret = log_tracebacks(ret)
-        return app.route(*args, **kw)(ret)
+        return app.route(*args, **kw)(fn)
     return deco
