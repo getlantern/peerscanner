@@ -27,9 +27,7 @@ redis = None
 cloudflare = None
 
 def register(name, ip):
-    print "Accessing redis"
     rh = redis.hgetall(rh_key(name))
-    print "Accessed redis"
     if rh:
         refresh_record(name, ip, rh)
     else:
