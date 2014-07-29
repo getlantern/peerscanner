@@ -22,9 +22,13 @@ q = rq.Queue(connection=lib.redis)
 
 @lib.check_and_route('/register', methods=methods)
 def register():
+    print 'Registering'
     name = lib.get_param('name')
+    print 'Got name'
     ip = lib.get_param('ip')
+    print 'Got IP'
     q.enqueue(lib.register, name, ip)
+    print 'Enqueued'
     return "OK"
 
 @lib.check_and_route('/unregister', methods=methods)
