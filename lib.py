@@ -12,12 +12,12 @@ import pyflare
 
 app = None
 AUTH_TOKEN = os.getenv('AUTH_TOKEN')
-DEBUG = False #True # os.getenv('DEBUG') == 'true'
+DEBUG = os.getenv('DEBUG') == 'true'
 CF_ZONE = 'getiantem.org'
 CF_ROUND_ROBIN_SUBDOMAIN = 'peerroundrobin'
 OWN_RECID_KEY = 'own_recid'
 ROUND_ROBIN_RECID_KEY = 'rr_recid'
-DO_CHECK_AUTH = False
+DO_CHECK_AUTH = not DEBUG
 NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
 MINUTE = 60
@@ -27,7 +27,9 @@ redis = None
 cloudflare = None
 
 def register(name, ip):
+    print "Accessing redis"
     rh = redis.hgetall(rh_key(name))
+    print "Accessed redis"
     if rh:
         refresh_record(name, ip, rh)
     else:
