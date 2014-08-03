@@ -24,10 +24,15 @@ q = rq.Queue(connection=lib.redis)
 def register():
     name = lib.get_param('name')
     ip = lib.get_param('ip')
-    print "Accessing redis queue"
-    q.enqueue(lib.register, name, ip)
-    print "Accessed redis queue"
-    return "OK"
+    port = lib.get_param('port')
+    if port != 443:
+        print "Ignoring peers on ports other than 443"
+        return "OK"
+    else:
+        print "Accessing redis queue"
+        q.enqueue(lib.register, name, ip)
+        print "Accessed redis queue"
+        return "OK"
 
 @lib.check_and_route('/unregister', methods=methods)
 def unregister():

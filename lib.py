@@ -74,7 +74,8 @@ def add_new_record(name, ip):
         response = cloudflare.rec_new(CF_ZONE,
                                       'A',
                                       subdomain,
-                                      ip)
+                                      ip, 
+                                      ttl=5*60)
         rh[key] = recid = response['response']['rec']['obj']['rec_id']
         # Set service_mode to "orange cloud".  For some reason we can't do
         # this on rec_new.
