@@ -56,7 +56,7 @@ def check_server(address):
     port = 443
     print "Attempting to connect to %s on port %s" % (address, port)
     try:
-        s.connect(address, port)
+        s.connect((address, port))
         print "Connected to %s on port %s" % (address, port)
         return True
     except socket.error, e:
