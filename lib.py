@@ -14,7 +14,7 @@ app = None
 AUTH_TOKEN = os.getenv('AUTH_TOKEN')
 DEBUG = os.getenv('DEBUG') == 'true'
 CF_ZONE = 'getiantem.org'
-CF_ROUND_ROBIN_SUBDOMAIN = 'peerroundrobin'
+CF_ROUND_ROBIN_SUBDOMAIN = 'roundrobin'
 OWN_RECID_KEY = 'own_recid'
 ROUND_ROBIN_RECID_KEY = 'rr_recid'
 DO_CHECK_AUTH = False
