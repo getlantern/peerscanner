@@ -8,6 +8,7 @@ from functools import wraps
 from flask import abort, request
 import redis as redis_module
 import pyflare
+import socket
 
 
 app = None
@@ -27,11 +28,14 @@ redis = None
 cloudflare = None
 
 def register(name, ip):
-    rh = redis.hgetall(rh_key(name))
-    if rh:
-        refresh_record(name, ip, rh)
+    if not check_server(ip):
+        print "Could not connect to newly registered peer"
     else:
-        add_new_record(name, ip)
+        rh = redis.hgetall(rh_key(name))
+        if rh:
+            refresh_record(name, ip, rh)
+        else:
+            add_new_record(name, ip)
 
 def unregister(name):
     rh = redis.hgetall(rh_key(name))
@@ -45,6 +49,19 @@ def unregister(name):
         rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
     print "record deleted OK"
+
+def check_server(address):
+    s = socket.socket()
+    s.settimeout(20)
+    port = 443
+    print "Attempting to connect to %s on port %s" % (address, port)
+    try:
+        s.connect(address, port)
+        print "Connected to %s on port %s" % (address, port)
+        return True
+    except socket.error, e:
+        print "Connection to %s on port %s failed: %s" % (address, port, e)
+        return False
 
 def refresh_record(name, ip, rh):
     print "refreshing record for %s (%s), redis hash %s" % (name, ip, rh)
