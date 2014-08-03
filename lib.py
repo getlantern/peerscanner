@@ -61,7 +61,6 @@ def check_server(address):
 
         # Make sure we close the socket immediately.
         print "Closing socket..."
-        s.shutdown()
         s.close()
         return True
     except socket.error, e:
