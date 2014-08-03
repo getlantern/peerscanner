@@ -25,6 +25,7 @@ def register():
     name = lib.get_param('name')
     ip = lib.get_param('ip')
     port = lib.get_param('port')
+    print "Port is %s" % port
     if port != 443:
         print "Ignoring peers on ports other than 443"
         return "OK"
