@@ -96,7 +96,7 @@ def add_new_record(name, ip):
                                       'A',
                                       subdomain,
                                       ip, 
-                                      ttl=5*60)
+                                      ttl=6*60)
         rh[key] = recid = response['response']['rec']['obj']['rec_id']
         # Set service_mode to "orange cloud".  For some reason we can't do
         # this on rec_new.
