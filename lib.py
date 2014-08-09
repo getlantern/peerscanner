@@ -29,7 +29,7 @@ cloudflare = None
 
 def register(name, ip):
     if not check_server(ip):
-        print "Could not connect to newly registered peer"
+        print "Could not connect to newly registered peer at %s" % ip
     else:
         rh = redis.hgetall(rh_key(name))
         if rh:
@@ -44,6 +44,7 @@ def unregister(name):
         return
     for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, ROUND_ROBIN_RECID_KEY),
                            (name, OWN_RECID_KEY)]:
+
         cloudflare.rec_delete(CF_ZONE, rh[key])
     with transaction() as rt:
         rt.delete(rh_key(name))
@@ -51,7 +52,8 @@ def unregister(name):
     print "record deleted OK"
 
 def check_server(address):
-    s = socket.socket()
+    s_ = socket.socket()
+    s = ssl.wrap_socket(s_)
     s.settimeout(20)
     port = 443
     print "Attempting to connect to %s on port %s" % (address, port)
