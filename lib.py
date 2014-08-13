@@ -29,6 +29,7 @@ redis = None
 cloudflare = None
 
 def register(name, ip):
+    print "Processing register for peer: %s" % ip
     if not check_server(ip):
         print "Could not connect to newly registered peer at %s" % ip
     else:

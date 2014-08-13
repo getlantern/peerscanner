@@ -25,14 +25,13 @@ def register():
     name = lib.get_param('name')
     ip = lib.get_param('ip')
     port = lib.get_param('port')
-    print "Port is %s" % port
+    print ("Received register from %s:%s" % (ip, port))
     if int(port) != 443:
         print "Ignoring peers on ports other than 443"
         return "OK"
     else:
-        print "Accessing redis queue"
         q.enqueue(lib.register, name, ip)
-        print "Accessed redis queue"
+        print ("Enqueued %s:%s" % (ip, port))
         return "OK"
 
 @lib.check_and_route('/unregister', methods=methods)
