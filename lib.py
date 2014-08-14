@@ -57,7 +57,7 @@ def unregister(name):
 def check_server(address):
     s_ = socket.socket()
     s = ssl.wrap_socket(s_)
-    s.settimeout(7)
+    s.settimeout(5)
     port = 443
     print "Attempting to connect to %s on port %s" % (address, port)
     try:
