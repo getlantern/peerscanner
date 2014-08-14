@@ -24,6 +24,7 @@ NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
 MINUTE = 60
 STALE_TIME = 2 * MINUTE
+#STALE_TIME = 20
 
 redis = None
 cloudflare = None
@@ -56,7 +57,7 @@ def unregister(name):
 def check_server(address):
     s_ = socket.socket()
     s = ssl.wrap_socket(s_)
-    s.settimeout(10)
+    s.settimeout(7)
     port = 443
     print "Attempting to connect to %s on port %s" % (address, port)
     try:
@@ -81,7 +82,6 @@ def refresh_record(name, ip, rh):
                                 ROUND_ROBIN_RECID_KEY),
                                 (name, OWN_RECID_KEY)]:
 
-            '''
             cloudflare.rec_edit(CF_ZONE,
                                 'A',
                                 rh[key],
@@ -89,7 +89,6 @@ def refresh_record(name, ip, rh):
                                 ip,
                                 ttl=6*60
                                 service_mode=1)
-            '''
     with transaction() as rt:
         rt.hmset(rh_key(name), {'last_updated': redis_datetime(), 'ip': ip})
         rt.zadd(NAME_BY_TIMESTAMP_KEY, name, redis_timestamp())
@@ -100,7 +99,7 @@ def add_new_record(name, ip):
     rh = {"ip": ip}
     for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, 'rr_recid'),
                            (name, 'own_recid')]:
-        '''                
+
         response = cloudflare.rec_new(CF_ZONE,
                                       'A',
                                       subdomain,
@@ -109,7 +108,6 @@ def add_new_record(name, ip):
         rh[key] = recid = response['response']['rec']['obj']['rec_id']
         # Set service_mode to "orange cloud".  For some reason we can't do
         # this on rec_new.
-        
         cloudflare.rec_edit(CF_ZONE,
                             'A',
                             recid,
@@ -117,7 +115,6 @@ def add_new_record(name, ip):
                             ip,
                             ttl=6*60
                             service_mode=1)
-        '''
     rh['last_updated'] = redis_datetime()
     with transaction() as rt:
         rt.hmset(rh_key(name), rh)

@@ -6,7 +6,7 @@ import traceback
 import lib
 
 MINUTE = 60
-SLEEP_TIME = 1 * MINUTE
+SLEEP_TIME = 20 #1 * MINUTE
 
 
 def run():
