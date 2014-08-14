@@ -23,8 +23,7 @@ DO_CHECK_AUTH = False
 NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
 MINUTE = 60
-#STALE_TIME = 5 * MINUTE
-STALE_TIME = 5
+STALE_TIME = 2 * MINUTE
 
 redis = None
 cloudflare = None
@@ -57,7 +56,7 @@ def unregister(name):
 def check_server(address):
     s_ = socket.socket()
     s = ssl.wrap_socket(s_)
-    s.settimeout(20)
+    s.settimeout(10)
     port = 443
     print "Attempting to connect to %s on port %s" % (address, port)
     try:
@@ -122,7 +121,6 @@ def remove_stale_entries():
     for name in redis.zrangebyscore(NAME_BY_TIMESTAMP_KEY,
                                         '-inf',
                                         cutoff):
-        print "Removing stale", name
         try:
             unregister(name)
             print "Unregistered", name
