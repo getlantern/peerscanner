@@ -23,7 +23,8 @@ DO_CHECK_AUTH = False
 NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
 MINUTE = 60
-STALE_TIME = 5 * MINUTE
+#STALE_TIME = 5 * MINUTE
+STALE_TIME = 5
 
 redis = None
 cloudflare = None
@@ -121,6 +122,7 @@ def remove_stale_entries():
     for name in redis.zrangebyscore(NAME_BY_TIMESTAMP_KEY,
                                         '-inf',
                                         cutoff):
+        print "Removing stale", name
         try:
             unregister(name)
             print "Unregistered", name
