@@ -53,14 +53,15 @@ def unregister(name):
         except KeyError, e:
             print "Record missing? %s" % e
     with transaction() as rt:
-        rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
+        rt.delete(rh_key(name))
+        
     print "record deleted OK"
 
 def check_server(address):
     s_ = socket.socket()
     s = ssl.wrap_socket(s_)
-    s.settimeout(8)
+    s.settimeout(5)
     port = 443
     print "Attempting to connect to %s on port %s" % (address, port)
     try:
