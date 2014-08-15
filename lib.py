@@ -87,7 +87,7 @@ def refresh_record(name, ip, rh):
                                 rh[key],
                                 subdomain,
                                 ip,
-                                ttl=6*60
+                                ttl=6*60,
                                 service_mode=1)
     with transaction() as rt:
         rt.hmset(rh_key(name), {'last_updated': redis_datetime(), 'ip': ip})
@@ -113,7 +113,7 @@ def add_new_record(name, ip):
                             recid,
                             subdomain,
                             ip,
-                            ttl=6*60
+                            ttl=6*60,
                             service_mode=1)
     rh['last_updated'] = redis_datetime()
     with transaction() as rt:
