@@ -62,14 +62,14 @@ def check_server(address):
     print "Attempting to connect to %s on port %s" % (address, port)
     try:
         s.connect((address, port))
-        print "Connected to %s on port %s" % (address, port)
+        print "Successful connection to %s on port %s" % (address, port)
 
         # Make sure we close the socket immediately.
         print "Closing socket..."
         s.close()
         return True
     except socket.error, e:
-        print "Connection to %s on port %s failed: %s" % (address, port, e)
+        print "Failed connection to %s on port %s failed: %s" % (address, port, e)
         return False
 
 def refresh_record(name, ip, rh):
