@@ -23,8 +23,8 @@ DO_CHECK_AUTH = False
 NAME_BY_TIMESTAMP_KEY = 'name_by_ts'
 
 MINUTE = 60
-STALE_TIME = 2 * MINUTE
-#STALE_TIME = 20
+#STALE_TIME = 2 * MINUTE
+STALE_TIME = 40
 
 redis = None
 cloudflare = None
@@ -61,7 +61,7 @@ def unregister(name):
 def check_server(address):
     s_ = socket.socket()
     s = ssl.wrap_socket(s_)
-    s.settimeout(5)
+    s.settimeout(4)
     port = 443
     print "Attempting to connect to %s on port %s" % (address, port)
     try:
