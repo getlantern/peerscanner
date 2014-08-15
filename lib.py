@@ -48,7 +48,10 @@ def unregister(name):
     for subdomain, key in [(CF_ROUND_ROBIN_SUBDOMAIN, ROUND_ROBIN_RECID_KEY),
                            (name, OWN_RECID_KEY)]:
 
-        cloudflare.rec_delete(CF_ZONE, rh[key])
+        try:
+            cloudflare.rec_delete(CF_ZONE, rh[key])
+        except KeyError, e:
+            print "Record missing? %s" % e
     with transaction() as rt:
         rt.delete(rh_key(name))
         rt.zrem(NAME_BY_TIMESTAMP_KEY, name)
