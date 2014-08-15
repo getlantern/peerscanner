@@ -1,3 +1,2 @@
-worker: python -u ./rq_worker.py
-worker: python -u ./stale_checker.py 
+worker: ./start-workers.bash
 web: ./start-web.bash
