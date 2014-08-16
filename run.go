@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 )
 
 func main() {
@@ -15,7 +14,7 @@ func main() {
 
 	for {
 		loopThroughRecords(cf)
-		time.Sleep(10 * time.Second)
+		//time.Sleep(10 * time.Second)
 	}
 
 }
@@ -50,7 +49,7 @@ func loopThroughRecords(cf *CloudflareApi) {
 			log.Println("Finished http call")
 			if err != nil {
 				fmt.Errorf("HTTP Error: %s", resp)
-				log.Println("Removing record")
+				log.Println("REMOVING RECORD FOR PEER: %s", record.Name)
 
 				// If it's a peer, remove it.
 				cf.remove(record.Domain, record.Id)
@@ -63,7 +62,7 @@ func loopThroughRecords(cf *CloudflareApi) {
 					continue
 				}
 
-				log.Printf("RESPONSE: %s", body)
+				log.Printf("RESPONSE FOR PEER: %s, %s", record.Name, body)
 			}
 		} else {
 			fmt.Println("NOT A PEER: ", record.Name)
