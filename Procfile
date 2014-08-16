@@ -1,2 +1,2 @@
-web: web
-clock: peerscanner 
+web: peerscanner
+clock: clock
