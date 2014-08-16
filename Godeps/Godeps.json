@@ -1,10 +1,9 @@
 {
 	"ImportPath": "github.com/getlantern/peerscanner",
-	"GoVersion": "devel +f8b50ad4cac4 Mon Apr 21 17:00:27 2014 -0700 +",
+	"GoVersion": "go1.3",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go-uuid/uuid",
-			"Comment": "null-12",
 			"Rev": "7dda39b2e7d5e265014674c5af696ba4186679e9"
 		},
 		{
@@ -24,7 +23,7 @@
 			"Rev": "79e8a91a6e873a40d645ac9f03f7cdcbfdb8103a"
 		},
 		{
-			"ImportPath": "keyman",
+			"ImportPath": "github.com/getlantern/keyman",
 			"Rev": "419f9e1573657e4bd14f33ada17c819f11f60809"
 		}
 	]
