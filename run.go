@@ -37,7 +37,7 @@ func loopThroughRecords(cf *CloudflareApi) {
 			fmt.Println("NOT AN A RECORD: ", record.Type)
 			continue
 		}
-		if len(record.Name) == 32 {
+		if len(record.Name) < 32 {
 			fmt.Println("NOOOTT PEER: ", record.Name)
 
 			client := &FlashlightClient{

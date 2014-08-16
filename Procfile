@@ -1,2 +1,1 @@
-web: peerscanner
 clock: clock
