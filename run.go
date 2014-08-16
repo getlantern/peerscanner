@@ -65,6 +65,8 @@ func loopThroughRecords(cf *CloudflareApi) {
 
 				log.Printf("RESPONSE: %s", body)
 			}
+		} else {
+			fmt.Println("NOT A PEER: ", record.Name)
 		}
 	}
 }
