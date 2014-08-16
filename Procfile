@@ -1,1 +1,1 @@
-clock: run 
+clock: peerscanner 

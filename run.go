@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	fmt.Println("Starting CloudFlare Flashlight Tests...")
 	cf := &CloudflareApi{}
 
 	for {
