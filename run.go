@@ -37,8 +37,8 @@ func loopThroughRecords(cf *CloudflareApi) {
 			fmt.Println("NOT AN A RECORD: ", record.Type)
 			continue
 		}
-		if len(record.Name) < 32 {
-			fmt.Println("NOOOTT PEER: ", record.Name)
+		if len(record.Name) == 32 {
+			fmt.Println("PEER: ", record.Name)
 
 			client := &FlashlightClient{
 				UpstreamHost: record.Name + ".getiantem.org"} //record.Name} //"roundrobin.getiantem.org"}
