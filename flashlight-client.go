@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"keyman"
 	"log"
 	"net"
@@ -21,29 +20,6 @@ const (
 	HR            = "--------------------------------------------------------------------------------"
 )
 
-func main() {
-	client := &FlashlightClient{
-		UpstreamHost: "roundrobin.getiantem.org"}
-
-	httpClient := client.newClient()
-
-	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
-	resp, err := httpClient.Do(req)
-
-	if err != nil {
-		return
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		return
-	}
-
-	log.Printf("RESPONSE: %s", body)
-
-}
-
 type FlashlightClient struct {
 	UpstreamHost string
 }
@@ -54,10 +30,10 @@ func (client *FlashlightClient) newClient() *http.Client {
 		DialProxy: func(addr string) (net.Conn, error) {
 			return tls.DialWithDialer(
 				&net.Dialer{
-					Timeout:   20 * time.Second,
+					Timeout:   8 * time.Second,
 					KeepAlive: 70 * time.Second,
 				},
-				"tcp", addressForServer(), clientTLSConfig())
+				"tcp", client.addressForServer(), client.clientTLSConfig())
 			//return net.Dial("tcp", addressForServer())
 		},
 		NewRequest: func(host string, method string, body io.Reader) (req *http.Request, err error) {
@@ -122,12 +98,12 @@ func (rt *headerDumpingRoundTripper) RoundTrip(req *http.Request) (resp *http.Re
 }
 
 // Get the address to dial for reaching the server
-func addressForServer() string {
+func (client *FlashlightClient) addressForServer() string {
 	return fmt.Sprintf("%s:%d", MASQUERADE_AS, 443)
 }
 
 // Build a tls.Config for the client to use in dialing server
-func clientTLSConfig() *tls.Config {
+func (client *FlashlightClient) clientTLSConfig() *tls.Config {
 	tlsConfig := &tls.Config{
 		ClientSessionCache:                  tls.NewLRUClientSessionCache(1000),
 		SuppressServerNameInClientHandshake: true,
