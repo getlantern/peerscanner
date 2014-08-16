@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/pearkes/cloudflare"
@@ -45,6 +46,21 @@ func (api *CloudflareApi) loadAll(domain string) (*cloudflare.RecordsResponse, e
 
 	// The request was successful
 	return records, nil
+}
+
+func (api *CloudflareApi) remove(domain string, id string) error {
+	client, err := cloudflare.NewClient("", "")
+	if err != nil {
+		return fmt.Errorf("Error creating clouflare client: %s", err)
+	}
+
+	err = client.DestroyRecord(domain, id)
+
+	if err != nil {
+		log.Println("Error destroying record")
+		return fmt.Errorf("Error creating request: %s", err)
+	}
+	return nil
 }
 
 func noRedirect(req *http.Request, via []*http.Request) error {

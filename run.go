@@ -6,18 +6,25 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
 	cf := &CloudflareApi{}
 
+	for {
+		loopThroughRecords(cf)
+		time.Sleep(10 * time.Second)
+	}
+
+}
+
+func loopThroughRecords(cf *CloudflareApi) {
 	records, err := cf.loadAll("getiantem.org")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error retrieving record!", err)
 		return
 	}
-
-	//fmt.Println("Retrieved records %s", records)
 
 	recs := records.Response.Recs.Records
 
@@ -42,22 +49,21 @@ func main() {
 			log.Println("Finished http call")
 			if err != nil {
 				fmt.Errorf("HTTP Error: %s", resp)
-				log.Println("Returning")
+				log.Println("Removing record")
 
 				// If it's a peer, remove it.
+				cf.remove(record.Domain, record.Id)
 			} else {
 				body, err := ioutil.ReadAll(resp.Body)
 				defer resp.Body.Close()
 				if err != nil {
 					fmt.Errorf("HTTP Body Error: %s", body)
 					log.Println("Returning 2")
-					return
+					continue
 				}
 
 				log.Printf("RESPONSE: %s", body)
 			}
-
 		}
-
 	}
 }
