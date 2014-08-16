@@ -1,1 +1,1 @@
-clock: clock
+clock: peerscanner
