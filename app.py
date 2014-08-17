@@ -30,7 +30,7 @@ def register():
         print "Ignoring peers on ports other than 443"
         return "OK"
     else:
-        #q.enqueue(lib.register, name, ip)
+        q.enqueue(lib.register, name, ip)
         print ("Enqueued %s:%s" % (ip, port))
         return "OK"
 
