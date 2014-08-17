@@ -16,12 +16,11 @@ func main() {
 	cf := &CloudflareApi{}
 
 	for {
+		fmt.Println("Starting pass!")
 		failedips = make([]string, 2)
 		loopThroughRecords(cf)
 
-		// Make sure this gets garbage collected
-		failedips = nil
-
+		fmt.Println("Sleeping!")
 		time.Sleep(6 * time.Second)
 	}
 
@@ -40,7 +39,7 @@ func loopThroughRecords(cf *CloudflareApi) {
 	c := make(chan bool)
 	numpeers := 0
 	for _, record := range recs {
-		if len(record.Name) > 20 {
+		if len(record.Name) == 32 {
 			fmt.Println("PEER: ", record.Name)
 
 			go testPeer(cf, record.Domain, record.Id, record.Name, record.Value, c)
@@ -66,19 +65,16 @@ func loopThroughRecords(cf *CloudflareApi) {
 
 	fmt.Println("FAILED IPS: ", failedips)
 
-	// Now loop through again and remove any failed peers.
+	// Now loop through again and remove any entries for failed ips
 	for _, record := range recs {
 		if record.Type != "A" {
 			fmt.Println("NOT AN A RECORD: ", record.Type)
 			continue
 		}
-
-		if len(record.Name) != 32 {
-			for _, ip := range failedips {
-				if record.Value == ip {
-					fmt.Println("DELETING VALUE: ", record.Value)
-					cf.remove(record.Domain, record.Id)
-				}
+		for _, ip := range failedips {
+			if record.Value == ip {
+				fmt.Println("DELETING VALUE: ", record.Value)
+				cf.remove(record.Domain, record.Id)
 			}
 		}
 	}
@@ -99,7 +95,7 @@ func testPeer(cf *CloudflareApi, domain string, id string, name string, value st
 		log.Println("REMOVING RECORD FOR PEER: %s", name)
 
 		// If it's a peer, remove it.
-		cf.remove(domain, id)
+		//cf.remove(domain, id)
 		failedips = append(failedips, value)
 		c <- false
 	} else {
@@ -108,7 +104,7 @@ func testPeer(cf *CloudflareApi, domain string, id string, name string, value st
 		if err != nil {
 			fmt.Errorf("HTTP Body Error: %s", body)
 			log.Println("Error reading body")
-			cf.remove(domain, id)
+			//cf.remove(domain, id)
 			failedips = append(failedips, value)
 			c <- false
 		} else {
