@@ -55,7 +55,7 @@ func loopThroughRecords(cf *CloudflareApi) {
 	}
 
 	for i := 0; i < numpeers; i++ {
-		fmt.Print(<-c)
+		fmt.Println(<-c)
 	}
 
 }
