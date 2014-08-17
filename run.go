@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
@@ -14,7 +15,7 @@ func main() {
 
 	for {
 		loopThroughRecords(cf)
-		//time.Sleep(10 * time.Second)
+		time.Sleep(6 * time.Second)
 	}
 
 }
