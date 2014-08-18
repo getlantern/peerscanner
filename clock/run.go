@@ -84,7 +84,7 @@ func loopThroughRecords(cf *CloudflareApi) {
 
 func testPeer(cf *CloudflareApi, domain string, id string, name string, value string, c chan<- bool) {
 
-	client := &FlashlightClient{
+	client := &common.FlashlightClient{
 		UpstreamHost: name + ".getiantem.org"} //record.Name} //"roundrobin.getiantem.org"}
 
 	httpClient := client.newClient()
