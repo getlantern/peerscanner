@@ -7,13 +7,15 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/getlantern/peerscanner/common"
 )
 
 var failedips = make([]string, 2)
 
 func main() {
 	fmt.Println("Starting CloudFlare Flashlight Tests...")
-	cf := &CloudflareApi{}
+	cf := &common.CloudflareApi{}
 
 	for {
 		fmt.Println("Starting pass!")

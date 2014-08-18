@@ -7,53 +7,82 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/getlantern/peerscanner/common"
+
 	"github.com/iron-io/iron_go/mq"
 )
 
-type Reg struct {
-	Name string
-	Ip   string
-	Port int
+func register(w http.ResponseWriter, r *http.Request) {
+	json, err := requestToReg(r)
+	if err != nil {
+		fmt.Println("Error converting request ", err)
+	} else {
+		postToQueue("peer-register", json)
+	}
 }
 
-func register(w http.ResponseWriter, r *http.Request) {
+func unregister(w http.ResponseWriter, r *http.Request) {
+	json, err := requestToReg(r)
+	if err != nil {
+		fmt.Println("Error converting request ", err)
+	} else {
+		postToQueue("peer-unregister", json)
+	}
+}
+
+func requestToReg(r *http.Request) (string, error) {
 	name := r.FormValue("name")
 	fmt.Println("Read name: ", name)
 	ip := r.FormValue("ip")
 	portString := r.FormValue("port")
 
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		// handle error
-		fmt.Println(err)
-		return
+	port := 0
+	if portString == "" {
+		// Could be an unregister call
+		port = 0
+	} else {
+		converted, err := strconv.Atoi(portString)
+		if err != nil {
+			// handle error
+			fmt.Println(err)
+			return "", err
+		}
+		port = converted
 	}
-	if port != 443 {
+
+	// If they're actually reporting an IP (it's a register call), make
+	// sure the port is 443
+	if len(ip) > 0 && port != 443 {
 		fmt.Println("Ignoring port not on 443")
-		return
+		return "", fmt.Errorf("Bad port: %d", port)
 	}
-	reg := &Reg{name, ip, port}
+	reg := &common.Reg{name, ip, port}
 
 	json, err := json.Marshal(reg)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return "", err
 	}
-	fmt.Println(string(json))
-	queue := mq.New("peers")
-
-	id, err := queue.PushString(string(json))
-
-	fmt.Println("ID is ", id)
+	jsonStr := string(json)
+	fmt.Println(jsonStr)
+	return jsonStr, nil
 }
 
-func unregister(w http.ResponseWriter, r *http.Request) {
+func postToQueue(queueName string, data string) {
+	queue := mq.New(queueName)
 
+	id, err := queue.PushString(data)
+
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println("ID is ", id)
+	}
 }
 
 func main() {
-	http.HandleFunc("/register/", register)
-	http.HandleFunc("/unregister/", unregister)
+	http.HandleFunc("/register", register)
+	http.HandleFunc("/unregister", unregister)
 	http.ListenAndServe(getPort(), nil)
 }
 
