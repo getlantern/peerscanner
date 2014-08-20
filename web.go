@@ -1,38 +1,163 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
+	//"io/ioutil"
+	//"strings"
 
-	"github.com/getlantern/peerscanner/common"
-
-	"github.com/iron-io/iron_go/mq"
+	"github.com/getlantern/cloudflare"
+	"github.com/getlantern/flashlight/proxy"
 )
 
-func register(w http.ResponseWriter, r *http.Request) {
-	json, err := requestToReg(r)
+const (
+	CF_DOMAIN = "getiantem.org"
+)
+
+type Reg struct {
+	Name string
+	Ip   string
+	Port int
+}
+
+func register(w http.ResponseWriter, request *http.Request) {
+	reg, err := requestToReg(request)
 	if err != nil {
-		fmt.Println("Error converting request ", err)
+		log.Println("Error converting request ", err)
 	} else {
-		postToQueue("peer-register", json)
+		go func() {
+			// We make a flashlight callback directly to
+			// the peer. If that works, then we register
+			// it in DNS. Our periodic worker process
+			// will find it there and will test it again
+			// end-to-end with the DNS provider before
+			// entering it into the round robin.
+			if callbackToPeer(reg.Ip) {
+				registerPeer(reg)
+			}
+		}()
 	}
+
 }
 
 func unregister(w http.ResponseWriter, r *http.Request) {
-	json, err := requestToReg(r)
+	reg, err := requestToReg(r)
 	if err != nil {
 		fmt.Println("Error converting request ", err)
 	} else {
-		postToQueue("peer-unregister", json)
+		removeFromDns(reg)
 	}
 }
 
-func requestToReg(r *http.Request) (string, error) {
+func removeFromDns(reg *Reg) {
+
+	client, err := cloudflare.NewClient("", "")
+	if err != nil {
+		log.Println("Could not create CloudFlare client:", err)
+		return
+	}
+
+	rec, err := client.RetrieveRecordByName(CF_DOMAIN, reg.Name)
+	if err != nil {
+		log.Println("Error retrieving record! ", err)
+		return
+	}
+
+
+	// Make sure we destroy the record on CloudFlare if it
+	// didn't work.
+	log.Println("Destroying record for: ", reg.Name)
+	err = client.DestroyRecord(CF_DOMAIN, rec.Id)
+	if err != nil {
+		log.Println("Error deleting peer record! ", err)
+	} else {
+		log.Println("Removed DNS record for ", reg.Ip)
+	}
+}
+
+func callbackToPeer(upstreamHost string) bool {
+	flashlightClient := &proxy.Client{
+		UpstreamHost:       upstreamHost,
+		UpstreamPort:       443,
+		InsecureSkipVerify: true,
+	}
+
+	flashlightClient.BuildEnproxyConfig()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial: flashlightClient.DialWithEnproxy,
+		},
+	}
+
+	resp, err := client.Head("http://www.google.com/humans.txt")
+	if err != nil {
+		return false
+	} else {
+		/*
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return false
+		}
+
+		log.Println("Read body: ", string(body))
+		*/
+		log.Println("Direct HEAD request succeeded")
+		defer resp.Body.Close()
+		return true
+	}
+}
+
+func registerPeer(reg *Reg) (*cloudflare.Record, error) {
+	client, err := cloudflare.NewClient("", "")
+	if err != nil {
+		log.Println("Could not create CloudFlare client:", err)
+		return nil, err
+	}
+
+	cr := cloudflare.CreateRecord{Type: "A", Name: reg.Name, Content: reg.Ip}
+	rec, err := client.CreateRecord(CF_DOMAIN, &cr)
+
+	if err != nil {
+		log.Println("Could not create record? ", err)
+		return nil, err
+	}
+
+	log.Println("Successfully created record for: ", rec.FullName, rec.Id)
+
+	// Note for some reason CloudFlare seems to ignore the TTL here.
+	ur := cloudflare.UpdateRecord{Type: "A", Name: reg.Name, Content: reg.Ip, Ttl: "360", ServiceMode: "1"}	
+
+	err = client.UpdateRecord(CF_DOMAIN, rec.Id, &ur)
+
+	if err != nil {
+		log.Println("Could not update record? ", err)
+		return nil, err
+	}
+
+	log.Println("Successfully updated record to use CloudFlare service mode")
+	return rec, err
+}
+
+/*
+func clientIpFor(req *http.Request) string {
+	// Client requested their info
+	clientIp := req.Header.Get("X-Forwarded-For")
+	if clientIp == "" {
+		clientIp = strings.Split(req.RemoteAddr, ":")[0]
+	}
+	// clientIp may contain multiple ips, use the first
+	ips := strings.Split(clientIp, ",")
+	return strings.TrimSpace(ips[0])
+}
+*/
+
+func requestToReg(r *http.Request) (*Reg, error) {
 	name := r.FormValue("name")
-	fmt.Println("Read name: ", name)
+	log.Println("Read name: ", name)
 	ip := r.FormValue("ip")
 	portString := r.FormValue("port")
 
@@ -45,7 +170,7 @@ func requestToReg(r *http.Request) (string, error) {
 		if err != nil {
 			// handle error
 			fmt.Println(err)
-			return "", err
+			return nil, err
 		}
 		port = converted
 	}
@@ -53,31 +178,12 @@ func requestToReg(r *http.Request) (string, error) {
 	// If they're actually reporting an IP (it's a register call), make
 	// sure the port is 443
 	if len(ip) > 0 && port != 443 {
-		fmt.Println("Ignoring port not on 443")
-		return "", fmt.Errorf("Bad port: %d", port)
+		log.Println("Ignoring port not on 443")
+		return nil, fmt.Errorf("Bad port: %d", port)
 	}
-	reg := &common.Reg{name, ip, port}
+	reg := &Reg{name, ip, port}
 
-	json, err := json.Marshal(reg)
-	if err != nil {
-		fmt.Println(err)
-		return "", err
-	}
-	jsonStr := string(json)
-	fmt.Println(jsonStr)
-	return jsonStr, nil
-}
-
-func postToQueue(queueName string, data string) {
-	queue := mq.New(queueName)
-
-	id, err := queue.PushString(data)
-
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println("ID is ", id)
-	}
+	return reg, nil
 }
 
 func main() {
