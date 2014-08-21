@@ -36,6 +36,7 @@ func register(w http.ResponseWriter, request *http.Request) {
 			// end-to-end with the DNS provider before
 			// entering it into the round robin.
 			if callbackToPeer(reg.Ip) {
+				log.Println("Registering peer: ", reg.Ip)
 				registerPeer(reg)
 			}
 		}()
@@ -95,6 +96,7 @@ func callbackToPeer(upstreamHost string) bool {
 
 	resp, err := client.Head("http://www.google.com/humans.txt")
 	if err != nil {
+		log.Println("Direct HEAD request failed for IP ", upstreamHost)
 		return false
 	} else {
 		/*
@@ -105,7 +107,7 @@ func callbackToPeer(upstreamHost string) bool {
 
 		log.Println("Read body: ", string(body))
 		*/
-		log.Println("Direct HEAD request succeeded")
+		log.Println("Direct HEAD request succeeded ", upstreamHost)
 		defer resp.Body.Close()
 		return true
 	}
