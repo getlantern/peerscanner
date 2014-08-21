@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 	"io"
-	"keyman"
 	"log"
 	"net"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/getlantern/enproxy"
+	"github.com/getlantern/keyman"
 	"github.com/getlantern/tls"
 )
 
