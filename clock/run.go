@@ -11,7 +11,12 @@ import (
 	"github.com/getlantern/peerscanner/common"
 )
 
+const (
+	CF_DOMAIN = "getiantem.org"
+)
+
 var failedips = make([]string, 2)
+var sucessfulips = make([]string, 20)
 
 func main() {
 	log.Println("Starting CloudFlare Flashlight Tests...")
@@ -24,6 +29,7 @@ func main() {
 	for {
 		log.Println("Starting pass!")
 		failedips = make([]string, 2)
+		sucessfulips = make([]string, 20)
 		loopThroughRecords(client)
 
 		log.Println("Sleeping!")
@@ -84,6 +90,41 @@ func loopThroughRecords(client *cloudflare.Client) {
 			}
 		}
 	}
+
+	for _, record := range recs {
+		if len(record.Name) == 32 {
+			log.Println("PEER: ", record.Name)
+			for _, ip := range sucessfulips {
+				if record.Value == ip {
+					log.Println("ADDING IP TO ROUNDROBIN!!: ", record.Value)
+					cr := cloudflare.CreateRecord{Type: "A", Name: record.Name, Content: record.Value}
+					rec, err := client.CreateRecord(CF_DOMAIN, &cr)
+
+					if err != nil {
+						log.Println("Could not create record? ", err)
+						break
+					}
+
+					log.Println("Successfully created record for: ", rec.FullName, rec.Value)
+
+					// Note for some reason CloudFlare seems to ignore the TTL here.
+					ur := cloudflare.UpdateRecord{Type: "A", Name: "roundrobin", Content: rec.Value, Ttl: "360", ServiceMode: "1"}	
+
+					err = client.UpdateRecord(CF_DOMAIN, rec.Id, &ur)
+
+					if err != nil {
+						log.Println("Could not update record? ", err)
+						break
+					} else {
+						log.Println("Successfully updated record for ", ip)
+					}
+				}
+			}
+
+		} else {
+			log.Println("VALUE: ", record.Value)
+		}
+	}
 }
 
 func testPeer(domain string, id string, name string, ip string, c chan<- bool) {
@@ -115,6 +156,7 @@ func testPeer(domain string, id string, name string, ip string, c chan<- bool) {
 			c <- false
 		} else {
 			log.Printf("RESPONSE FOR PEER: %s, %s\n", name, body)
+			sucessfulips = append(sucessfulips, ip)
 			c <- true
 		}
 	}
