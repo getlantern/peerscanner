@@ -7,7 +7,7 @@ import (
 	"os"
 	"strconv"
 	//"io/ioutil"
-	//"strings"
+	"strings"
 
 	"github.com/getlantern/cloudflare"
 	"github.com/getlantern/flashlight/proxy"
@@ -142,23 +142,10 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 	return rec, err
 }
 
-/*
-func clientIpFor(req *http.Request) string {
-	// Client requested their info
-	clientIp := req.Header.Get("X-Forwarded-For")
-	if clientIp == "" {
-		clientIp = strings.Split(req.RemoteAddr, ":")[0]
-	}
-	// clientIp may contain multiple ips, use the first
-	ips := strings.Split(clientIp, ",")
-	return strings.TrimSpace(ips[0])
-}
-*/
-
 func requestToReg(r *http.Request) (*Reg, error) {
 	name := r.FormValue("name")
 	log.Println("Read name: ", name)
-	ip := r.FormValue("ip")
+	ip := clientIpFor(r)
 	portString := r.FormValue("port")
 
 	port := 0
@@ -186,6 +173,23 @@ func requestToReg(r *http.Request) (*Reg, error) {
 	return reg, nil
 }
 
+func clientIpFor(req *http.Request) string {
+	// If we're running in production on Heroku, use the IP of the client.
+	// Otherwise use whatever IP is passed to the API.
+	if onHeroku() {
+		// Client requested their info
+		clientIp := req.Header.Get("X-Forwarded-For")
+		if clientIp == "" {
+			clientIp = strings.Split(req.RemoteAddr, ":")[0]
+		}
+		// clientIp may contain multiple ips, use the first
+		ips := strings.Split(clientIp, ",")
+		return strings.TrimSpace(ips[0])
+	} else {
+		return req.FormValue("ip")
+	}
+}
+
 func main() {
 	http.HandleFunc("/register", register)
 	http.HandleFunc("/unregister", unregister)
@@ -201,4 +205,9 @@ func getPort() string {
 		fmt.Println("INFO: No PORT environment variable detected, defaulting to " + port)
 	}
 	return ":" + port
+}
+
+func onHeroku() bool {
+	var dyno = os.Getenv("DYNO")
+	return dyno != ""
 }

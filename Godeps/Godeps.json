@@ -1,9 +1,10 @@
 {
 	"ImportPath": "github.com/getlantern/peerscanner",
-	"GoVersion": "go1.3",
+	"GoVersion": "go1.3.1",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go-uuid/uuid",
+			"Comment": "null-12",
 			"Rev": "7dda39b2e7d5e265014674c5af696ba4186679e9"
 		},
 		{
@@ -11,20 +12,48 @@
 			"Rev": "3fdaf5cea8d23107b993d363e98992fa529dd713"
 		},
 		{
+			"ImportPath": "github.com/getlantern/cloudflare",
+			"Rev": "9f37e266e36c319f09dc949e7ae83faa44ee8987"
+		},
+		{
 			"ImportPath": "github.com/getlantern/enproxy",
-			"Rev": "fa30c001d3783a2fc41cc5150e43452dc22df6b4"
+			"Rev": "ad952841056d7be93447b93bed4f86a59a51beb0"
 		},
 		{
-			"ImportPath": "github.com/getlantern/tls",
-			"Rev": "c26f6d9c4b17213b1bd78a734465f2e33be3d12f"
+			"ImportPath": "github.com/getlantern/eventsource",
+			"Rev": "9cd55e34d9c68eb30b161dfb2d24c8130cb05545"
 		},
 		{
-			"ImportPath": "github.com/pearkes/cloudflare",
-			"Rev": "79e8a91a6e873a40d645ac9f03f7cdcbfdb8103a"
+			"ImportPath": "github.com/getlantern/flashlight/log",
+			"Comment": "0.0.2-7-g2a002fd",
+			"Rev": "2a002fddfce6691f662d70dbb8d3d0c18dbc8431"
+		},
+		{
+			"ImportPath": "github.com/getlantern/flashlight/proxy",
+			"Comment": "0.0.2-7-g2a002fd",
+			"Rev": "2a002fddfce6691f662d70dbb8d3d0c18dbc8431"
+		},
+		{
+			"ImportPath": "github.com/getlantern/flashlight/statreporter",
+			"Comment": "0.0.2-7-g2a002fd",
+			"Rev": "2a002fddfce6691f662d70dbb8d3d0c18dbc8431"
+		},
+		{
+			"ImportPath": "github.com/getlantern/flashlight/statserver",
+			"Comment": "0.0.2-7-g2a002fd",
+			"Rev": "2a002fddfce6691f662d70dbb8d3d0c18dbc8431"
+		},
+		{
+			"ImportPath": "github.com/getlantern/idletiming",
+			"Rev": "47fbdd42abd4a5a148cc3f1b38551cda546d5039"
 		},
 		{
 			"ImportPath": "github.com/getlantern/keyman",
 			"Rev": "419f9e1573657e4bd14f33ada17c819f11f60809"
+		},
+		{
+			"ImportPath": "github.com/getlantern/tls",
+			"Rev": "c26f6d9c4b17213b1bd78a734465f2e33be3d12f"
 		}
 	]
 }

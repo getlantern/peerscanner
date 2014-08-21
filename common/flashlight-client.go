@@ -24,7 +24,7 @@ type FlashlightClient struct {
 	UpstreamHost string
 }
 
-func (client *FlashlightClient) newClient() *http.Client {
+func (client *FlashlightClient) NewClient() *http.Client {
 
 	enproxyConfig := &enproxy.Config{
 		DialProxy: func(addr string) (net.Conn, error) {

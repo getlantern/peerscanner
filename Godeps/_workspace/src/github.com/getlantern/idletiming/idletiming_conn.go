@@ -1,26 +1,21 @@
-package enproxy
+// package idletiming provides mechanisms for adding idle timeouts to net.Conn
+// and net.Listener.
+package idletiming
 
 import (
 	"net"
 	"time"
 )
 
-// idleTimingConn is a net.Conn that wraps another net.Conn and that times out
-// if idle for more than idleTimeout.
-type idleTimingConn struct {
-	conn             net.Conn
-	idleTimeout      time.Duration
-	lastActivityTime time.Time
-	closedCh         chan bool
-}
-
-// withIdleTimeout creates a new idleTimingConn wrapping the given net.Conn.
+// Conn creates a new net.Conn wrapping the given net.Conn that times out after
+// the specified period.
 //
 // idleTimeout specifies how long to wait for inactivity before considering
-// connection idle.
+// connection idle.  Note - the actual timeout may be up to twice idleTimeout,
+// depending on timing.
 //
-// onClose is an optional function to call after the connection has been closed
-func withIdleTimeout(conn net.Conn, idleTimeout time.Duration, onClose func()) *idleTimingConn {
+// onIdle is an optional function to call after the connection has been closed
+func Conn(conn net.Conn, idleTimeout time.Duration, onIdle func()) net.Conn {
 	c := &idleTimingConn{
 		conn:             conn,
 		idleTimeout:      idleTimeout,
@@ -29,8 +24,8 @@ func withIdleTimeout(conn net.Conn, idleTimeout time.Duration, onClose func()) *
 	}
 
 	go func() {
-		if onClose != nil {
-			defer onClose()
+		if onIdle != nil {
+			defer onIdle()
 		}
 
 		for {
@@ -46,6 +41,15 @@ func withIdleTimeout(conn net.Conn, idleTimeout time.Duration, onClose func()) *
 	}()
 
 	return c
+}
+
+// idleTimingConn is a net.Conn that wraps another net.Conn and that times out
+// if idle for more than idleTimeout.
+type idleTimingConn struct {
+	conn             net.Conn
+	idleTimeout      time.Duration
+	lastActivityTime time.Time
+	closedCh         chan bool
 }
 
 func (c *idleTimingConn) Read(b []byte) (int, error) {

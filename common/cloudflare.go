@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/pearkes/cloudflare"
+	"github.com/getlantern/cloudflare"
 )
 
 type CloudflareApi struct {
