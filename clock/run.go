@@ -98,7 +98,7 @@ func testPeer(domain string, id string, name string, ip string, c chan<- bool) {
 	log.Println("Finished http call for ", ip)
 	if err != nil {
 		fmt.Errorf("HTTP Error: %s", resp)
-		log.Println("REMOVING RECORD FOR PEER: ", ip)
+		log.Println("REMOVING RECORD FOR PEER: ", ip, resp)
 
 		// If it's a peer, remove it.
 		//cf.remove(domain, id)
