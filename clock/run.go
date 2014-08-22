@@ -16,6 +16,11 @@ const (
 	CF_DOMAIN = "getiantem.org"
 )
 
+type RecordTest struct {
+	rec *cloudflare.Record
+	success bool
+}
+
 func main() {
 	log.Println("Starting CloudFlare Flashlight Tests...")
 	client, err := cloudflare.NewClient("", "")
@@ -47,36 +52,44 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// Loop through once to hit all the peers to see if they fail.
 
 	// All failed peers.
-	failed := make([]cloudflare.Record, 0)
+	failed := make([]*cloudflare.Record, 0)
 
 	// All successful peers.
-	successful := make([]cloudflare.Record, 0)
+	successful := make([]*cloudflare.Record, 0)
 
 	// All peers.
-	peers := make([]cloudflare.Record, 0)
+	peers := make([]*cloudflare.Record, 0)
 
 	// All entries in the round robin.
-	roundrobin := make([]cloudflare.Record, 0)
+	roundrobin := make([]*cloudflare.Record, 0)
+
+	c := make(chan RecordTest)
 
 	var wg sync.WaitGroup
 	for _, record := range recs {
 		if len(record.Name) == 32 {
-			log.Println("PEER: ", record.Name)
-			peers = append(peers, record)
-			success := testPeer(client, &record)
-			if (success) {
-				successful = append(successful, record)
-			} else {
-				failed = append(failed, record)
-			}
+			log.Println("PEER: ", record.Value)
+			peers = append(peers, &record)
+			go testPeer(client, record, c)
 		} else if (record.Name == "roundrobin") {
-			roundrobin = append(roundrobin, record)
+			roundrobin = append(roundrobin, &record)
 		} else {
 			log.Println("NON-PEER IP: ", record.Name, record.Value)
 		}
 	}
 	//log.Println("Waiting for all peer tests to complete")
 	//wg.Wait()
+
+	for i := 0; i < len(peers); i++ {
+		test := <-c
+		if test.success {
+			successful = append(successful, test.rec)
+		} else {
+			failed = append(failed, test.rec)
+		}
+	}
+
+
 
 	log.Printf("RESULTS: SUCCESES: %v FAILURES: %v\n", len(successful), len(failed))
 
@@ -123,7 +136,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 			}
 		}
 		if !rr {
-			addToRoundRobin(client, &record)
+			addToRoundRobin(client, record)
 		}
 	}
 
@@ -155,7 +168,7 @@ func addToRoundRobin(client *cloudflare.Client, record *cloudflare.Record) {
 	}
 }
 
-func testPeer(cf *cloudflare.Client, rec *cloudflare.Record) bool {
+func testPeer(cf *cloudflare.Client, rec cloudflare.Record, c chan<- RecordTest) bool {
 
 	client := &common.FlashlightClient{
 		UpstreamHost: rec.Name + ".getiantem.org"} //record.Name} //"roundrobin.getiantem.org"}
@@ -170,6 +183,7 @@ func testPeer(cf *cloudflare.Client, rec *cloudflare.Record) bool {
 		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
 		cf.DestroyRecord(CF_DOMAIN, rec.Id)
 		cf.DestroyRecord(rec.Domain, rec.Id)
+		c <- RecordTest{&rec, false}
 		return false
 	} else {
 		body, err := ioutil.ReadAll(resp.Body)
@@ -178,9 +192,11 @@ func testPeer(cf *cloudflare.Client, rec *cloudflare.Record) bool {
 			fmt.Errorf("HTTP Body Error: %s", body)
 			log.Println("Error reading body for peer: ", rec.Value)
 			//cf.remove(domain, id)
+			c <- RecordTest{&rec, false}
 			return false
 		} else {
 			log.Printf("RESPONSE FOR PEER: %s, %s\n", rec.Value, body)
+			c <- RecordTest{&rec, true}
 			return true
 		}
 	}
