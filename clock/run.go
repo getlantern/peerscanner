@@ -53,8 +53,8 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// Loop through once to hit all the peers to see if they fail.
 	c := make(chan bool)
 
-	peers := make([]RecordsResponse, 2)
-	roundrobin := make([]RecordsResponse, 2)
+	//peers := make([]RecordsResponse, 2)
+	//roundrobin := make([]RecordsResponse, 2)
 
 	numpeers := 0
 	for _, record := range recs {
@@ -133,7 +133,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 			}
 
 		} else {
-			log.Println("VALUE: ", record.Value)
+			log.Println("IGNORING NON-PEER WITH NAME AND IP: ", record.Name, record.Value)
 		}
 	}
 }
