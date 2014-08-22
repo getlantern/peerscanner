@@ -47,6 +47,9 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	recs := records.Response.Recs.Records
 
+	// Sleep to make sure records have propagated to CloudFlare internally.
+	time.Sleep(10 * time.Second)
+
 	// Loop through once to hit all the peers to see if they fail.
 	c := make(chan bool)
 	numpeers := 0

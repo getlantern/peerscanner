@@ -99,14 +99,6 @@ func callbackToPeer(upstreamHost string) bool {
 		log.Println("Direct HEAD request failed for IP ", upstreamHost)
 		return false
 	} else {
-		/*
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return false
-		}
-
-		log.Println("Read body: ", string(body))
-		*/
 		log.Println("Direct HEAD request succeeded ", upstreamHost)
 		defer resp.Body.Close()
 		return true
