@@ -3,6 +3,7 @@ package cloudflare
 import (
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 type RecordsResponse struct {
@@ -312,7 +313,7 @@ func (c *Client) LoadAllAtIndex(domain string, index int) (*RecordsResponse, err
 	params := make(map[string]string)
 	// The zone we want
 	params["z"] = domain
-	params["o"] = string(index)
+	params["o"] = strconv.Itoa(index)
 	return c.loadAll(&params)
 }
 

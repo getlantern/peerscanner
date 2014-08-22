@@ -43,11 +43,13 @@ func loopThroughRecords(client *cloudflare.Client) {
 		return
 	}
 
+	log.Println("Loaded original records...", records.Response.Recs.Count)
+
 	recs := records.Response.Recs.Records
 
 	if records.Response.Recs.HasMore {
 		log.Println("Adding additional records")
-		newrecords, err := client.LoadAllAtIndex("getiantem.org", records.Response.Recs.Count)
+		newrecords, err := client.LoadAllAtIndex("getiantem.org", records.Response.Recs.Count-1)
 		if err != nil {
 			log.Println("Error retrieving record!", err)
 			return
@@ -104,7 +106,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 
 
-	log.Printf("RESULTS: SUCCESES: %v FAILURES: %v\n", len(successful), len(failed))
+	log.Printf("RESULTS: SUCCESSES: %v FAILURES: %v\n", len(successful), len(failed))
 
 	log.Printf("IN ROUNDROBIN: %v", len(roundrobin))
 
