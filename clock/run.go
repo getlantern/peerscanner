@@ -84,7 +84,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 	log.Println("Waiting for all peer tests to complete")
 	wg.Wait()
 
-	log.Println("RESULTS: SUCCESES: %s FAILURES: %s", len(successful), len(failed))
+	log.Printf("RESULTS: SUCCESES: %v FAILURES: %v\n", len(successful), len(failed))
 
 	log.Println("FAILED IPS: ", failed)
 
