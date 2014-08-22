@@ -45,6 +45,16 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	recs := records.Response.Recs.Records
 
+	if records.Response.Recs.HasMore {
+		newrecords, err := client.LoadAllAtIndex("getiantem.org", records.Response.Recs.Count)
+		if err != nil {
+			log.Println("Error retrieving record!", err)
+			return
+		}
+
+		recs = append(recs, newrecords.Response.Recs.Records...)
+	}
+
 	// Sleep here instead to make sure records have propagated to CloudFlare internally.
 	log.Println("Sleeping!")
 	time.Sleep(10 * time.Second)
