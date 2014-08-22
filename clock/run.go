@@ -84,15 +84,15 @@ func loopThroughRecords(client *cloudflare.Client) {
 	log.Println("Waiting for all peer tests to complete")
 	wg.Wait()
 
-	log.Printf("RESULTS:\nSUCCESES: %i\nFAILURES: %i\n", len(successful), len(failed))
+	log.Println("RESULTS: SUCCESES: %s FAILURES: %s", len(successful), len(failed))
 
 	log.Println("FAILED IPS: ", failed)
 
 	// Now loop through again and remove any entries for failed ips.
 	// Note we need to both remove them directly as well as from
 	// the roundrobin if they exist there.
-	for _, record := range failed {
-		log.Println("DELETING VALUE: ", record.Value)
+	for _, f := range failed {
+		log.Println("DELETING VALUE: ", f.Value)
 
 		go func() {
 			wg.Add(1)
@@ -100,12 +100,12 @@ func loopThroughRecords(client *cloudflare.Client) {
 			// Look for the IP in the roundrobin and remove it if it's
 			// there
 			for _, rec := range roundrobin {
-				if (rec.Value == record.Value) {
+				if (rec.Value == f.Value) {
 					client.DestroyRecord(rec.Domain, rec.Id)
 					break
 				}
 			}
-			client.DestroyRecord(record.Domain, record.Id)
+			client.DestroyRecord(f.Domain, f.Id)
 		}()
 	}
 
