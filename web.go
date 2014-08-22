@@ -38,7 +38,7 @@ func register(w http.ResponseWriter, request *http.Request) {
 		if callbackToPeer(reg.Ip) {
 			go func() {
 				log.Println("Registering peer: ", reg.Ip)
-				//registerPeer(reg)
+				registerPeer(reg)
 			}()
 		} else {
 			w.WriteHeader(STATUS_GATEWAY_TIMEOUT)
