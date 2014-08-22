@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/list"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -49,34 +50,34 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// Loop through once to hit all the peers to see if they fail.
 
 	// All failed peers.
-	failed := make([]cloudflare.Record, 1)
+	failed := list.New()
 
 	// All successful peers.
-	successful := make([]cloudflare.Record, 1)
+	successful := list.New()
 
 	// All peers.
-	peers := make([]cloudflare.Record, 1)
+	peers := list.New()
 
 	// All entries in the round robin.
-	roundrobin := make([]cloudflare.Record, 10)
+	roundrobin := list.New()
 
 	var wg sync.WaitGroup
 	for _, record := range recs {
 		if len(record.Name) == 32 {
 			log.Println("PEER: ", record.Name)
-			peers = append(peers, record)
+			peers.PushFront(record)
 			go func() {
 				wg.Add(1)
 				success := testPeer(record.Domain, record.Id, record.Name, record.Value)
 				if (success) {
-					successful = append(successful, record)
+					successful.PushFront(record)
 				} else {
-					failed = append(failed, record)
+					failed.PushFront(record)
 				}
 				wg.Done()
 			}()
 		} else if (record.Name == "roundrobin") {
-			roundrobin = append(roundrobin, record)
+			roundrobin.PushFront(record)
 		} else {
 			log.Println("NON-PEER IP: ", record.Name, record.Value)
 		}
@@ -84,24 +85,29 @@ func loopThroughRecords(client *cloudflare.Client) {
 	log.Println("Waiting for all peer tests to complete")
 	wg.Wait()
 
-	log.Printf("RESULTS: SUCCESES: %v FAILURES: %v\n", len(successful), len(failed))
+	log.Printf("RESULTS: SUCCESES: %v FAILURES: %v\n", successful.Len(), failed.Len())
 
-	log.Printf("IN ROUNDROBIN: %v", len(roundrobin))
+	log.Printf("IN ROUNDROBIN: %v", roundrobin.Len())
 
 	log.Println("FAILED IPS: ", failed)
 
 	// Now loop through again and remove any entries for failed ips.
 	// Note we need to both remove them directly as well as from
 	// the roundrobin if they exist there.
-	for _, f := range failed {
-		log.Println("DELETING VALUE: ", f)
+	for elem := failed.Front(); elem != nil; elem = elem.Next() {
+	//for _, f := range failed {
+
+		f := elem.Value.(cloudflare.Record)
+		log.Println("DELETING VALUE: ", f.Value)
 
 		go func() {
 			wg.Add(1)
 			defer wg.Done()
 			// Look for the IP in the roundrobin and remove it if it's
 			// there
-			for _, rec := range roundrobin {
+			for e := roundrobin.Front(); e != nil; e = e.Next() {
+				rec := e.Value.(cloudflare.Record)
+			//for _, rec := range roundrobin {
 				if (rec.Value == f.Value) {
 					client.DestroyRecord(rec.Domain, rec.Id)
 					break
@@ -116,9 +122,12 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	// Now loop through and add any successful IPs that aren't 
 	// already in the roundrobin.
-	for _, record := range successful {
+	for elem := successful.Front(); elem != nil; elem = elem.Next() {
+		record := elem.Value.(cloudflare.Record)
+	//for _, record := range successful {
 		log.Println("PEER: ", record.Name)
-		for _, rec := range roundrobin {
+		for e := roundrobin.Front(); e != nil; e = e.Next() {
+			rec := e.Value.(cloudflare.Record)
 			if (rec.Value == record.Value) {
 				log.Println("Peer is already in round robin: ", record.Value)
 				break
