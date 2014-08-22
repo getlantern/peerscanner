@@ -15,6 +15,7 @@ import (
 
 const (
 	CF_DOMAIN = "getiantem.org"
+	STATUS_GATEWAY_TIMEOUT = 504
 )
 
 type Reg struct {
@@ -28,20 +29,21 @@ func register(w http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		log.Println("Error converting request ", err)
 	} else {
-		go func() {
-			// We make a flashlight callback directly to
-			// the peer. If that works, then we register
-			// it in DNS. Our periodic worker process
-			// will find it there and will test it again
-			// end-to-end with the DNS provider before
-			// entering it into the round robin.
-			if callbackToPeer(reg.Ip) {
+		// We make a flashlight callback directly to
+		// the peer. If that works, then we register
+		// it in DNS. Our periodic worker process
+		// will find it there and will test it again
+		// end-to-end with the DNS provider before
+		// entering it into the round robin.
+		if callbackToPeer(reg.Ip) {
+			go func() {
 				log.Println("Registering peer: ", reg.Ip)
 				registerPeer(reg)
-			}
-		}()
+			}()
+		} else {
+			w.WriteHeader(STATUS_GATEWAY_TIMEOUT)
+		}
 	}
-
 }
 
 func unregister(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +68,6 @@ func removeFromDns(reg *Reg) {
 		log.Println("Error retrieving record! ", err)
 		return
 	}
-
 
 	// Make sure we destroy the record on CloudFlare if it
 	// didn't work.
@@ -123,7 +124,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 	log.Println("Successfully created record for: ", rec.FullName, rec.Id)
 
 	// Note for some reason CloudFlare seems to ignore the TTL here.
-	ur := cloudflare.UpdateRecord{Type: "A", Name: reg.Name, Content: reg.Ip, Ttl: "360", ServiceMode: "1"}	
+	ur := cloudflare.UpdateRecord{Type: "A", Name: reg.Name, Content: reg.Ip, Ttl: "360", ServiceMode: "1"}
 
 	err = client.UpdateRecord(CF_DOMAIN, rec.Id, &ur)
 
