@@ -63,7 +63,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 		if len(record.Name) == 32 {
 			log.Println("PEER: ", record.Name)
 			peers = append(peers, record)
-			success := testPeer(&record)
+			success := testPeer(client, &record)
 			if (success) {
 				successful = append(successful, record)
 			} else {
@@ -105,10 +105,10 @@ func loopThroughRecords(client *cloudflare.Client) {
 			client.DestroyRecord(f.Domain, f.Id)
 		}()
 	}
-	*/
 
 	log.Println("Waiting for removals")
 	wg.Wait()
+	*/
 
 	// Now loop through and add any successful IPs that aren't 
 	// already in the roundrobin.
