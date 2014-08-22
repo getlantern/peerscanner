@@ -49,16 +49,16 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// Loop through once to hit all the peers to see if they fail.
 
 	// All failed peers.
-	failed := make([]cloudflare.Record, 2)
+	failed := make([]*cloudflare.Record, 1)
 
 	// All successful peers.
-	successful := make([]cloudflare.Record, 2)
+	successful := make([]cloudflare.Record, 1)
 
 	// All peers.
-	peers := make([]cloudflare.Record, 2)
+	peers := make([]cloudflare.Record, 1)
 
 	// All entries in the round robin.
-	roundrobin := make([]cloudflare.Record, 2)
+	roundrobin := make([]*cloudflare.Record, 10)
 
 	var wg sync.WaitGroup
 	for _, record := range recs {
@@ -71,12 +71,12 @@ func loopThroughRecords(client *cloudflare.Client) {
 				if (success) {
 					successful = append(successful, record)
 				} else {
-					failed = append(failed, record)
+					failed = append(failed, &record)
 				}
 				wg.Done()
 			}()
 		} else if (record.Name == "roundrobin") {
-			roundrobin = append(roundrobin, record)
+			roundrobin = append(roundrobin, &record)
 		} else {
 			log.Println("NON-PEER IP: ", record.Name, record.Value)
 		}
@@ -85,6 +85,8 @@ func loopThroughRecords(client *cloudflare.Client) {
 	wg.Wait()
 
 	log.Printf("RESULTS: SUCCESES: %v FAILURES: %v\n", len(successful), len(failed))
+
+	log.Printf("IN ROUNDROBIN: %v", len(roundrobin))
 
 	log.Println("FAILED IPS: ", failed)
 
