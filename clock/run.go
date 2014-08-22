@@ -100,7 +100,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 			for _, ip := range sucessfulips {
 				if record.Value == ip {
 					log.Println("ADDING IP TO ROUNDROBIN!!: ", record.Value)
-					cr := cloudflare.CreateRecord{Type: "A", Name: record.Name, Content: record.Value}
+					cr := cloudflare.CreateRecord{Type: "A", Name: "roundrobin", Content: record.Value}
 					rec, err := client.CreateRecord(CF_DOMAIN, &cr)
 
 					if err != nil {
@@ -111,7 +111,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 					log.Println("Successfully created record for: ", rec.FullName, rec.Value)
 
 					// Note for some reason CloudFlare seems to ignore the TTL here.
-					ur := cloudflare.UpdateRecord{Type: "A", Name: "roundrobin", Content: rec.Value, Ttl: "360", ServiceMode: "1"}	
+					ur := cloudflare.UpdateRecord{Type: "A", Name: rec.Name, Content: rec.Value, Ttl: "360", ServiceMode: "1"}	
 
 					err = client.UpdateRecord(CF_DOMAIN, rec.Id, &ur)
 
