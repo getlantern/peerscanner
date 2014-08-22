@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/list"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -28,9 +27,6 @@ func main() {
 	for {
 		log.Println("Starting pass!")
 		loopThroughRecords(client)
-
-		log.Println("Sleeping!")
-		time.Sleep(6 * time.Second)
 	}
 
 }
@@ -44,70 +40,62 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	recs := records.Response.Recs.Records
 
-	// Sleep to make sure records have propagated to CloudFlare internally.
+	// Sleep here instead to make sure records have propagated to CloudFlare internally.
+	log.Println("Sleeping!")
 	time.Sleep(10 * time.Second)
 
 	// Loop through once to hit all the peers to see if they fail.
 
 	// All failed peers.
-	failed := list.New()
+	failed := make([]cloudflare.Record, 0)
 
 	// All successful peers.
-	successful := list.New()
+	successful := make([]cloudflare.Record, 0)
 
 	// All peers.
-	peers := list.New()
+	peers := make([]cloudflare.Record, 0)
 
 	// All entries in the round robin.
-	roundrobin := list.New()
+	roundrobin := make([]cloudflare.Record, 0)
 
 	var wg sync.WaitGroup
 	for _, record := range recs {
 		if len(record.Name) == 32 {
 			log.Println("PEER: ", record.Name)
-			peers.PushFront(record)
-			go func() {
-				wg.Add(1)
-				success := testPeer(record.Domain, record.Id, record.Name, record.Value)
-				if (success) {
-					successful.PushFront(record)
-				} else {
-					failed.PushFront(record)
-				}
-				wg.Done()
-			}()
+			peers = append(peers, record)
+			success := testPeer(&record)
+			if (success) {
+				successful = append(successful, record)
+			} else {
+				failed = append(failed, record)
+			}
 		} else if (record.Name == "roundrobin") {
-			roundrobin.PushFront(record)
+			roundrobin = append(roundrobin, record)
 		} else {
 			log.Println("NON-PEER IP: ", record.Name, record.Value)
 		}
 	}
-	log.Println("Waiting for all peer tests to complete")
-	wg.Wait()
+	//log.Println("Waiting for all peer tests to complete")
+	//wg.Wait()
 
-	log.Printf("RESULTS: SUCCESES: %v FAILURES: %v\n", successful.Len(), failed.Len())
+	log.Printf("RESULTS: SUCCESES: %v FAILURES: %v\n", len(successful), len(failed))
 
-	log.Printf("IN ROUNDROBIN: %v", roundrobin.Len())
+	log.Printf("IN ROUNDROBIN: %v", len(roundrobin))
 
 	log.Println("FAILED IPS: ", failed)
 
 	// Now loop through again and remove any entries for failed ips.
 	// Note we need to both remove them directly as well as from
 	// the roundrobin if they exist there.
-	for elem := failed.Front(); elem != nil; elem = elem.Next() {
-	//for _, f := range failed {
-
-		f := elem.Value.(cloudflare.Record)
-		log.Println("DELETING VALUE: ", f.Value)
+	for _, f := range failed {
+		log.Println("DELETING VALUE: ", f)
 
 		go func() {
 			wg.Add(1)
 			defer wg.Done()
 			// Look for the IP in the roundrobin and remove it if it's
 			// there
-			for e := roundrobin.Front(); e != nil; e = e.Next() {
-				rec := e.Value.(cloudflare.Record)
-			//for _, rec := range roundrobin {
+			for _, rec := range roundrobin {
 				if (rec.Value == f.Value) {
 					client.DestroyRecord(rec.Domain, rec.Id)
 					break
@@ -122,22 +110,19 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	// Now loop through and add any successful IPs that aren't 
 	// already in the roundrobin.
-	for elem := successful.Front(); elem != nil; elem = elem.Next() {
-		record := elem.Value.(cloudflare.Record)
-	//for _, record := range successful {
+	for _, record := range successful {
 		log.Println("PEER: ", record.Name)
-		for e := roundrobin.Front(); e != nil; e = e.Next() {
-			rec := e.Value.(cloudflare.Record)
+		rr := false
+		for _, rec := range roundrobin {
 			if (rec.Value == record.Value) {
 				log.Println("Peer is already in round robin: ", record.Value)
+				rr = true
 				break
 			}
 		}
-		go func() {
-			wg.Add(1)
-			defer wg.Done()
+		if !rr {
 			addToRoundRobin(client, &record)
-		}()
+		}
 	}
 
 	log.Println("Waiting for additions")
@@ -168,30 +153,30 @@ func addToRoundRobin(client *cloudflare.Client, record *cloudflare.Record) {
 	}
 }
 
-func testPeer(domain string, id string, name string, ip string) bool {
+func testPeer(rec *cloudflare.Record) bool {
 
 	client := &common.FlashlightClient{
-		UpstreamHost: name + ".getiantem.org"} //record.Name} //"roundrobin.getiantem.org"}
+		UpstreamHost: rec.Name + ".getiantem.org"} //record.Name} //"roundrobin.getiantem.org"}
 
 	httpClient := client.NewClient()
 
 	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
 	resp, err := httpClient.Do(req)
-	log.Println("Finished http call for ", ip)
+	log.Println("Finished http call for ", rec.Value)
 	if err != nil {
 		fmt.Errorf("HTTP Error: %s", resp)
-		log.Println("HTTP ERROR HITTING PEER: ", ip, err)
+		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
 		return false
 	} else {
 		body, err := ioutil.ReadAll(resp.Body)
 		defer resp.Body.Close()
 		if err != nil {
 			fmt.Errorf("HTTP Body Error: %s", body)
-			log.Println("Error reading body for peer: ", ip)
+			log.Println("Error reading body for peer: ", rec.Value)
 			//cf.remove(domain, id)
 			return false
 		} else {
-			log.Printf("RESPONSE FOR PEER: %s, %s\n", name, body)
+			log.Printf("RESPONSE FOR PEER: %s, %s\n", rec.Value, body)
 			return true
 		}
 	}
