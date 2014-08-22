@@ -8,6 +8,8 @@ import (
 type RecordsResponse struct {
 	Response struct {
 		Recs struct {
+			Count int `json:"count"`
+			HasMore bool `json:"has_more"`
 			Records []Record `json:"objs"`
 		} `json:"recs"`
 	} `json:"response"`
@@ -303,8 +305,19 @@ func (c *Client) LoadAll(domain string) (*RecordsResponse, error) {
 	params := make(map[string]string)
 	// The zone we want
 	params["z"] = domain
+	return c.loadAll(&params)
+}
 
-	req, err := c.NewRequest(params, "GET", "rec_load_all")
+func (c *Client) LoadAllAtIndex(domain string, index int) (*RecordsResponse, error) {
+	params := make(map[string]string)
+	// The zone we want
+	params["z"] = domain
+	params["o"] = string(index)
+	return c.loadAll(&params)
+}
+
+func (c *Client) loadAll(params *map[string]string) (*RecordsResponse, error) {
+	req, err := c.NewRequest(*params, "GET", "rec_load_all")
 
 	if err != nil {
 		return nil, fmt.Errorf("Error creating request: %s", err)

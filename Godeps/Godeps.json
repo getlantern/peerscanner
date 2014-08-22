@@ -13,7 +13,7 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/cloudflare",
-			"Rev": "9f37e266e36c319f09dc949e7ae83faa44ee8987"
+			"Rev": "01ebbda6fd339ccb4a6313b7d9c97f8797536f12"
 		},
 		{
 			"ImportPath": "github.com/getlantern/enproxy",
