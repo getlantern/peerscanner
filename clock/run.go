@@ -52,6 +52,10 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	// Loop through once to hit all the peers to see if they fail.
 	c := make(chan bool)
+
+	peers := make([]RecordsResponse, 2)
+	roundrobin := make([]RecordsResponse, 2)
+
 	numpeers := 0
 	for _, record := range recs {
 		if len(record.Name) == 32 {
@@ -61,7 +65,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 			numpeers++
 
 		} else {
-			log.Println("VALUE: ", record.Value)
+			log.Println("NON-PEER IP: ", record.Name, record.Value)
 		}
 	}
 
@@ -89,6 +93,8 @@ func loopThroughRecords(client *cloudflare.Client) {
 		for _, ip := range failedips {
 			if record.Value == ip {
 				log.Println("DELETING VALUE: ", record.Value)
+
+				// TODO: Parallelize!!
 				client.DestroyRecord(record.Domain, record.Id)
 			}
 		}
@@ -99,6 +105,8 @@ func loopThroughRecords(client *cloudflare.Client) {
 			log.Println("PEER: ", record.Name)
 			for _, ip := range sucessfulips {
 				if record.Value == ip {
+					// TODO: Parallelize!!
+					// TODO: Check if the IP is already in the roundrobin
 					log.Println("ADDING IP TO ROUNDROBIN!!: ", record.Value)
 					cr := cloudflare.CreateRecord{Type: "A", Name: "roundrobin", Content: record.Value}
 					rec, err := client.CreateRecord(CF_DOMAIN, &cr)
