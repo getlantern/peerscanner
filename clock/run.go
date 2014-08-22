@@ -87,6 +87,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// Now loop through again and remove any entries for failed ips.
 	// Note we need to both remove them directly as well as from
 	// the roundrobin if they exist there.
+	/*
 	for _, f := range failed {
 		log.Println("DELETING VALUE: ", f)
 
@@ -104,6 +105,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 			client.DestroyRecord(f.Domain, f.Id)
 		}()
 	}
+	*/
 
 	log.Println("Waiting for removals")
 	wg.Wait()
@@ -153,7 +155,7 @@ func addToRoundRobin(client *cloudflare.Client, record *cloudflare.Record) {
 	}
 }
 
-func testPeer(rec *cloudflare.Record) bool {
+func testPeer(cf *cloudflare.Client, rec *cloudflare.Record) bool {
 
 	client := &common.FlashlightClient{
 		UpstreamHost: rec.Name + ".getiantem.org"} //record.Name} //"roundrobin.getiantem.org"}
@@ -166,6 +168,8 @@ func testPeer(rec *cloudflare.Record) bool {
 	if err != nil {
 		fmt.Errorf("HTTP Error: %s", resp)
 		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
+		cf.DestroyRecord(CF_DOMAIN, rec.Id)
+		cf.DestroyRecord(rec.Domain, rec.Id)
 		return false
 	} else {
 		body, err := ioutil.ReadAll(resp.Body)
