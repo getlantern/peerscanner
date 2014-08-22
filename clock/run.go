@@ -118,7 +118,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 		log.Println("PEER: ", record.Name)
 		for _, rec := range roundrobin {
 			if (rec.Value == record.Value) {
-				log.Println("Peer is already in round robin")
+				log.Println("Peer is already in round robin: ", record.Value)
 				break
 			}
 		}
