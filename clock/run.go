@@ -92,7 +92,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// Note we need to both remove them directly as well as from
 	// the roundrobin if they exist there.
 	for _, f := range failed {
-		log.Println("DELETING VALUE: ", f.Value)
+		log.Println("DELETING VALUE: ", f)
 
 		go func() {
 			wg.Add(1)
