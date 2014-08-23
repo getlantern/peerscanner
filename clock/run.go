@@ -5,11 +5,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"sync"
+	//"sync"
 	"time"
 	"github.com/getlantern/cloudflare"
 
 	"github.com/getlantern/peerscanner/common"
+	"github.com/getlantern/flashlight/proxy"
 )
 
 const (
@@ -17,7 +18,7 @@ const (
 )
 
 type RecordTest struct {
-	rec *cloudflare.Record
+	rec cloudflare.Record
 	success bool
 }
 
@@ -34,6 +35,16 @@ func main() {
 		loopThroughRecords(client)
 	}
 
+}
+
+//func peerCallbackTest(in <-chan string, out chan<- *RecordTest) {
+func peerCallbackTest(in <-chan cloudflare.Record, out chan<- RecordTest) {
+	for r := range in {
+		log.Println("Calling back to ", r.Value)
+		success := callbackToPeer(r.Value)
+		//status <- State{r.url, s}
+		out <- RecordTest{r, success}
+	}
 }
 
 func loopThroughRecords(client *cloudflare.Client) {
@@ -60,9 +71,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 		log.Println("Not loading additional records. Loaded: ", records.Response.Recs.Count)
 	}
 
-	// Sleep here instead to make sure records have propagated to CloudFlare internally.
-	log.Println("Sleeping!")
-	time.Sleep(10 * time.Second)
+	log.Println("Total records loaded: ", len(recs))
 
 	// Loop through once to hit all the peers to see if they fail.
 
@@ -73,34 +82,23 @@ func loopThroughRecords(client *cloudflare.Client) {
 	successful := make([]*cloudflare.Record, 0)
 
 	// All peers.
-	peers := make([]*cloudflare.Record, 0)
+	peers := make([]cloudflare.Record, 0)
 
 	// All entries in the round robin.
-	roundrobin := make([]*cloudflare.Record, 0)
+	roundrobin := make([]cloudflare.Record, 0)
 
-	c := make(chan RecordTest)
+	//c := make(chan RecordTest)
 
-	var wg sync.WaitGroup
+	//var wg sync.WaitGroup
 	for _, record := range recs {
 		if len(record.Name) == 32 {
 			log.Println("PEER: ", record.Value)
-			peers = append(peers, &record)
-			go testPeer(client, record, c)
-		} else if (record.Name == "roundrobin") {
-			roundrobin = append(roundrobin, &record)
+			peers = append(peers, record)
+			//go testPeer(client, record, c)
+		} else if record.Name == "roundrobin" {
+			roundrobin = append(roundrobin, record)
 		} else {
 			log.Println("NON-PEER IP: ", record.Name, record.Value)
-		}
-	}
-	//log.Println("Waiting for all peer tests to complete")
-	//wg.Wait()
-
-	for i := 0; i < len(peers); i++ {
-		test := <-c
-		if test.success {
-			successful = append(successful, test.rec)
-		} else {
-			failed = append(failed, test.rec)
 		}
 	}
 
@@ -110,33 +108,37 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	log.Printf("IN ROUNDROBIN: %v", len(roundrobin))
 
-	log.Println("FAILED IPS: ", failed)
 
-	// Now loop through again and remove any entries for failed ips.
-	// Note we need to both remove them directly as well as from
-	// the roundrobin if they exist there.
-	/*
-	for _, f := range failed {
-		log.Println("DELETING VALUE: ", f)
-
-		go func() {
-			wg.Add(1)
-			defer wg.Done()
-			// Look for the IP in the roundrobin and remove it if it's
-			// there
-			for _, rec := range roundrobin {
-				if (rec.Value == f.Value) {
-					client.DestroyRecord(rec.Domain, rec.Id)
-					break
-				}
-			}
-			client.DestroyRecord(f.Domain, f.Id)
-		}()
+	// Now test to make sure there are no servers in the roundrobin that
+	// are failing that for whatever reason were not in the peer list.
+	complete := make(chan RecordTest)	
+	pending := make(chan cloudflare.Record)
+	for i := 0; i < len(roundrobin); i++ {
+		go peerCallbackTest(pending, complete)
 	}
 
-	log.Println("Waiting for removals")
-	wg.Wait()
-	*/
+	go func() {
+		for _, r := range roundrobin {
+			log.Println("Testing roundrobin entry: ", r.Value)
+			pending <- r
+		}
+	}()
+
+	log.Println("Checking complete records...")
+
+	go func() {
+		for r := range complete {
+			if !r.success {
+				log.Println("Destroying roundrobin record: ", r.rec.Value)
+				go client.DestroyRecord(r.rec.Domain, r.rec.Id)
+			} else {
+				log.Println("Ignoring successful roundrobin record: ", r.rec.Value)
+			}
+		}
+	}()
+
+	log.Println("Destroyed all failing records")
+	
 
 	// Now loop through and add any successful IPs that aren't 
 	// already in the roundrobin.
@@ -151,12 +153,44 @@ func loopThroughRecords(client *cloudflare.Client) {
 			}
 		}
 		if !rr {
-			addToRoundRobin(client, record)
+			// Disabled for now.
+			//addToRoundRobin(client, record)
 		}
 	}
 
+	// Sleep here instead to make sure records have propagated to CloudFlare internally.
+	log.Println("Sleeping!")
+	time.Sleep(10 * time.Second)
+	close(complete)
+
 	log.Println("Waiting for additions")
-	wg.Wait()
+}
+
+
+func callbackToPeer(upstreamHost string) bool {
+	flashlightClient := &proxy.Client{
+		UpstreamHost:       upstreamHost,
+		UpstreamPort:       443,
+		InsecureSkipVerify: true,
+	}
+
+	flashlightClient.BuildEnproxyConfig()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial: flashlightClient.DialWithEnproxy,
+		},
+	}
+
+	resp, err := client.Head("http://www.google.com/humans.txt")
+	if err != nil {
+		log.Println("Direct HEAD request failed for IP ", upstreamHost)
+		return false
+	} else {
+		log.Println("Direct HEAD request succeeded ", upstreamHost)
+		defer resp.Body.Close()
+		return true
+	}
 }
 
 func addToRoundRobin(client *cloudflare.Client, record *cloudflare.Record) {
@@ -198,7 +232,7 @@ func testPeer(cf *cloudflare.Client, rec cloudflare.Record, c chan<- RecordTest)
 		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
 		cf.DestroyRecord(CF_DOMAIN, rec.Id)
 		cf.DestroyRecord(rec.Domain, rec.Id)
-		c <- RecordTest{&rec, false}
+		c <- RecordTest{rec, false}
 		return false
 	} else {
 		body, err := ioutil.ReadAll(resp.Body)
@@ -207,11 +241,11 @@ func testPeer(cf *cloudflare.Client, rec cloudflare.Record, c chan<- RecordTest)
 			fmt.Errorf("HTTP Body Error: %s", body)
 			log.Println("Error reading body for peer: ", rec.Value)
 			//cf.remove(domain, id)
-			c <- RecordTest{&rec, false}
+			c <- RecordTest{rec, false}
 			return false
 		} else {
 			log.Printf("RESPONSE FOR PEER: %s, %s\n", rec.Value, body)
-			c <- RecordTest{&rec, true}
+			c <- RecordTest{rec, true}
 			return true
 		}
 	}
