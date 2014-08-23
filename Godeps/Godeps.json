@@ -9,7 +9,7 @@
 		},
 		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
-			"Rev": "65ca732a33a40c2a5b9e036f236f975e7e85cf6c"
+			"Rev": "3fdaf5cea8d23107b993d363e98992fa529dd713"
 		},
 		{
 			"ImportPath": "github.com/getlantern/cloudflare",
