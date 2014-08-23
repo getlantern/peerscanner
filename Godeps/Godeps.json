@@ -26,23 +26,23 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/log",
-			"Comment": "0.0.2-7-g1f84b50",
-			"Rev": "1f84b5058126388acfd72851088e0541119561e7"
+			"Comment": "0.0.2-9-gb16b1ec",
+			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/proxy",
-			"Comment": "0.0.2-7-g1f84b50",
-			"Rev": "1f84b5058126388acfd72851088e0541119561e7"
+			"Comment": "0.0.2-9-gb16b1ec",
+			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/statreporter",
-			"Comment": "0.0.2-7-g1f84b50",
-			"Rev": "1f84b5058126388acfd72851088e0541119561e7"
+			"Comment": "0.0.2-9-gb16b1ec",
+			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/statserver",
-			"Comment": "0.0.2-7-g1f84b50",
-			"Rev": "1f84b5058126388acfd72851088e0541119561e7"
+			"Comment": "0.0.2-9-gb16b1ec",
+			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
 		},
 		{
 			"ImportPath": "github.com/getlantern/idletiming",
