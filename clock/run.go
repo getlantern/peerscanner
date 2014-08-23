@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/getlantern/flashlight/proxy"
-	"github.com/getlantern/peerscanner/common"
 )
 
 const (
@@ -50,7 +49,7 @@ func getAllRecords(client *cloudflare.Client) (*cloudflare.RecordsResponse, erro
 
 	if records.Response.Recs.HasMore {
 		return getAllRecordsByIndex(client, records.Response.Recs.Count, records)
-	} 
+	}
 	return records, nil
 }
 
@@ -90,7 +89,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	log.Println("Total records loaded: ", len(recs))
 
-	// Loop through everything to do some bookkeeping and to put 
+	// Loop through everything to do some bookkeeping and to put
 	// records in their appropriate categories.
 
 	// All peers.
@@ -201,21 +200,21 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// Now loop through and add any successful IPs that aren't
 	// already in the roundrobin.
 	/*
-	for _, record := range successful {
-		log.Println("PEER: ", record.Name)
-		rr := false
-		for _, rec := range roundrobin {
-			if rec.Value == record.Value {
-				log.Println("Peer is already in round robin: ", record.Value)
-				rr = true
-				break
+		for _, record := range successful {
+			log.Println("PEER: ", record.Name)
+			rr := false
+			for _, rec := range roundrobin {
+				if rec.Value == record.Value {
+					log.Println("Peer is already in round robin: ", record.Value)
+					rr = true
+					break
+				}
+			}
+			if !rr {
+				// Disabled for now.
+				//addToRoundRobin(client, record)
 			}
 		}
-		if !rr {
-			// Disabled for now.
-			//addToRoundRobin(client, record)
-		}
-	}
 	*/
 
 	// Sleep here instead to make sure records have propagated to CloudFlare internally.
@@ -227,19 +226,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 }
 
 func callbackToPeer(upstreamHost string) bool {
-	flashlightClient := &proxy.Client{
-		UpstreamHost:       upstreamHost,
-		UpstreamPort:       443,
-		InsecureSkipVerify: true,
-	}
-
-	flashlightClient.BuildEnproxyConfig()
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: flashlightClient.DialWithEnproxy,
-		},
-	}
+	client := clientFor(upstreamHost)
 
 	resp, err := client.Head("http://www.google.com/humans.txt")
 	if err != nil {
@@ -279,10 +266,7 @@ func addToRoundRobin(client *cloudflare.Client, record cloudflare.Record) {
 func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- cloudflare.Record,
 	failures chan<- cloudflare.Record) bool {
 
-	client := &common.FlashlightClient{
-		UpstreamHost: rec.Name + ".getiantem.org"} //record.Name} //"roundrobin.getiantem.org"}
-
-	httpClient := client.NewClient()
+	httpClient := clientFor(rec.Name + ".getiantem.org")
 
 	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
 	resp, err := httpClient.Do(req)
@@ -310,5 +294,21 @@ func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- clo
 			successes <- rec
 			return true
 		}
+	}
+}
+
+func clientFor(upstreamHost string) *http.Client {
+	flashlightClient := &proxy.Client{
+		UpstreamHost:       upstreamHost,
+		UpstreamPort:       443,
+		InsecureSkipVerify: true,
+	}
+
+	flashlightClient.BuildEnproxyConfig()
+
+	return &http.Client{
+		Transport: &http.Transport{
+			Dial: flashlightClient.DialWithEnproxy,
+		},
 	}
 }
