@@ -142,8 +142,6 @@ var (
 	closeAngleBytes       = []byte(">")
 	openMapBytes          = []byte("map[")
 	closeMapBytes         = []byte("]")
-	lenEqualsBytes        = []byte("len=")
-	capEqualsBytes        = []byte("cap=")
 )
 
 // hexDigits is used to map a decimal value to a hex digit.
