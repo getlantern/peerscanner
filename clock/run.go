@@ -296,6 +296,7 @@ func clientFor(upstreamHost string) *http.Client {
 		UpstreamHost:       upstreamHost,
 		UpstreamPort:       443,
 		InsecureSkipVerify: true,
+		DialTimeout:        8 * time.Second,
 	}
 
 	flashlightClient.BuildEnproxyConfig()
