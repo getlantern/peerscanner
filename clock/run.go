@@ -92,7 +92,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	// Loop through everything to do some bookkeeping and to put 
 	// records in their appropriate categories.
-	
+
 	// All peers.
 	peers := make([]cloudflare.Record, 0)
 
@@ -146,6 +146,12 @@ func loopThroughRecords(client *cloudflare.Client) {
 			case r := <-failures:
 				log.Printf("%s failed\n", r.Value)
 				responses++
+				for _, rec := range roundrobin {
+					if rec.Value == r.Value {
+						log.Println("Deleting peer from round robin: ", r.Value)
+						client..DestroyRecord(CF_DOMAIN, rec.Id)
+					}
+				}
 				client.DestroyRecord(r.Domain, r.Id)
 				if responses == len(peers) {
 					return
@@ -284,8 +290,8 @@ func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- clo
 	if err != nil {
 		fmt.Errorf("HTTP Error: %s", resp)
 		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
-		cf.DestroyRecord(CF_DOMAIN, rec.Id)
-		cf.DestroyRecord(rec.Domain, rec.Id)
+		//cf.DestroyRecord(CF_DOMAIN, rec.Id)
+		//cf.DestroyRecord(rec.Domain, rec.Id)
 		failures <- rec
 		return false
 	} else {
