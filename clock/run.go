@@ -149,7 +149,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 				for _, rec := range roundrobin {
 					if rec.Value == r.Value {
 						log.Println("Deleting peer from round robin: ", r.Value)
-						client..DestroyRecord(CF_DOMAIN, rec.Id)
+						client.DestroyRecord(CF_DOMAIN, rec.Id)
 					}
 				}
 				client.DestroyRecord(r.Domain, r.Id)
