@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	CF_DOMAIN = "getiantem.org"
+	CF_DOMAIN     = "getiantem.org"
+	MASQUERADE_AS = "cdnjs.com"
+	ROOT_CA       = "-----BEGIN CERTIFICATE-----\nMIIDdTCCAl2gAwIBAgILBAAAAAABFUtaw5QwDQYJKoZIhvcNAQEFBQAwVzELMAkG\nA1UEBhMCQkUxGTAXBgNVBAoTEEdsb2JhbFNpZ24gbnYtc2ExEDAOBgNVBAsTB1Jv\nb3QgQ0ExGzAZBgNVBAMTEkdsb2JhbFNpZ24gUm9vdCBDQTAeFw05ODA5MDExMjAw\nMDBaFw0yODAxMjgxMjAwMDBaMFcxCzAJBgNVBAYTAkJFMRkwFwYDVQQKExBHbG9i\nYWxTaWduIG52LXNhMRAwDgYDVQQLEwdSb290IENBMRswGQYDVQQDExJHbG9iYWxT\naWduIFJvb3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDaDuaZ\njc6j40+Kfvvxi4Mla+pIH/EqsLmVEQS98GPR4mdmzxzdzxtIK+6NiY6arymAZavp\nxy0Sy6scTHAHoT0KMM0VjU/43dSMUBUc71DuxC73/OlS8pF94G3VNTCOXkNz8kHp\n1Wrjsok6Vjk4bwY8iGlbKk3Fp1S4bInMm/k8yuX9ifUSPJJ4ltbcdG6TRGHRjcdG\nsnUOhugZitVtbNV4FpWi6cgKOOvyJBNPc1STE4U6G7weNLWLBYy5d4ux2x8gkasJ\nU26Qzns3dLlwR5EiUWMWea6xrkEmCMgZK9FGqkjWZCrXgzT/LCrBbBlDSgeF59N8\n9iFo7+ryUp9/k5DPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBRge2YaRQ2XyolQL30EzTSo//z9SzANBgkqhkiG9w0B\nAQUFAAOCAQEA1nPnfE920I2/7LqivjTFKDK1fPxsnCwrvQmeU79rXqoRSLblCKOz\nyj1hTdNGCbM+w6DjY1Ub8rrvrTnhQ7k4o+YviiY776BQVvnGCv04zcQLcFGUl5gE\n38NflNUVyRRBnMRddWQVDf9VMOyGj/8N7yy5Y0b2qvzfvGn9LhJIZJrglfCm7ymP\nAbEVtQwdpf5pLGkkeB6zpxxxYu7KyJesF12KwvhHhm4qxFYxldBniYUr+WymXUad\nDKqC5JlR3XC321Y9YeRq4VzW9v493kHMB65jUr9TU/Qr6cf9tveCX4XSQRjbgbME\nHMUfpIBvFSDJ3gyICh3WZlXi/EjJKSZp4A==\n-----END CERTIFICATE-----\n"
 )
 
 type RecordTest struct {
@@ -226,7 +228,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 }
 
 func callbackToPeer(upstreamHost string) bool {
-	client := clientFor(upstreamHost)
+	client := clientFor(upstreamHost, "", "")
 
 	resp, err := client.Head("http://www.google.com/humans.txt")
 	if err != nil {
@@ -266,7 +268,7 @@ func addToRoundRobin(client *cloudflare.Client, record cloudflare.Record) {
 func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- cloudflare.Record,
 	failures chan<- cloudflare.Record) bool {
 
-	httpClient := clientFor(rec.Name + ".getiantem.org")
+	httpClient := clientFor(rec.Name+".getiantem.org", MASQUERADE_AS, ROOT_CA)
 
 	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
 	resp, err := httpClient.Do(req)
@@ -297,11 +299,17 @@ func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- clo
 	}
 }
 
-func clientFor(upstreamHost string) *http.Client {
+func clientFor(upstreamHost string, masqueradeHost string, rootCA string) *http.Client {
 	flashlightClient := &proxy.Client{
-		UpstreamHost:       upstreamHost,
-		UpstreamPort:       443,
-		InsecureSkipVerify: true,
+		UpstreamHost:   upstreamHost,
+		UpstreamPort:   443,
+		MasqueradeHost: masqueradeHost,
+		DialTimeout:    8 * time.Second,
+		RootCA:         rootCA,
+	}
+
+	if rootCA == "" {
+		flashlightClient.InsecureSkipVerify = true
 	}
 
 	flashlightClient.BuildEnproxyConfig()

@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/getlantern/peerscanner",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.3",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go-uuid/uuid",
@@ -17,6 +17,7 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/enproxy",
+			"Comment": "prehttpconnmerge-179-gad95284",
 			"Rev": "ad952841056d7be93447b93bed4f86a59a51beb0"
 		},
 		{
@@ -25,23 +26,23 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/log",
-			"Comment": "0.0.2-7-g2a002fd",
-			"Rev": "2a002fddfce6691f662d70dbb8d3d0c18dbc8431"
+			"Comment": "0.0.2-9-gb16b1ec",
+			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/proxy",
-			"Comment": "0.0.2-7-g2a002fd",
-			"Rev": "2a002fddfce6691f662d70dbb8d3d0c18dbc8431"
+			"Comment": "0.0.2-9-gb16b1ec",
+			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/statreporter",
-			"Comment": "0.0.2-7-g2a002fd",
-			"Rev": "2a002fddfce6691f662d70dbb8d3d0c18dbc8431"
+			"Comment": "0.0.2-9-gb16b1ec",
+			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/statserver",
-			"Comment": "0.0.2-7-g2a002fd",
-			"Rev": "2a002fddfce6691f662d70dbb8d3d0c18dbc8431"
+			"Comment": "0.0.2-9-gb16b1ec",
+			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
 		},
 		{
 			"ImportPath": "github.com/getlantern/idletiming",
