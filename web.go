@@ -37,8 +37,10 @@ func register(w http.ResponseWriter, request *http.Request) {
 		// entering it into the round robin.
 		if callbackToPeer(reg.Ip) {
 			go func() {
-				log.Println("Registering peer: ", reg.Ip)
-				//registerPeer(reg)
+				if (reg.Ip == "23.243.192.92") {
+					log.Println("Registering peer: ", reg.Ip)	
+					registerPeer(reg)
+				}
 			}()
 		} else {
 			w.WriteHeader(STATUS_GATEWAY_TIMEOUT)
