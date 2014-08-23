@@ -37,40 +37,62 @@ func main() {
 
 }
 
-func loopThroughRecords(client *cloudflare.Client) {
+func getAllRecords(client *cloudflare.Client) (*cloudflare.RecordsResponse, error) {
 	records, err := client.LoadAll("getiantem.org")
 	if err != nil {
 		log.Println("Error retrieving record!", err)
-		return
+		return nil, err
 	}
 
 	log.Println("Loaded original records...", records.Response.Recs.Count)
 
-	recs := records.Response.Recs.Records
+	//recs := records.Response.Recs.Records
+
+	if records.Response.Recs.HasMore {
+		return getAllRecordsByIndex(client, records.Response.Recs.Count, records)
+	} 
+	return records, nil
+}
+
+func getAllRecordsByIndex(client *cloudflare.Client, index int, response *cloudflare.RecordsResponse) (*cloudflare.RecordsResponse, error) {
+
+	records, err := client.LoadAllAtIndex("getiantem.org", index)
+	if err != nil {
+		log.Println("Error retrieving record!", err)
+		return nil, err
+	}
+
+	log.Println("Loaded original records...", records.Response.Recs.Count)
+
+	response.Response.Recs.Records = append(response.Response.Recs.Records, records.Response.Recs.Records...)
+
+	response.Response.Recs.Count = response.Response.Recs.Count + records.Response.Recs.Count
 
 	if records.Response.Recs.HasMore {
 		log.Println("Adding additional records")
-		newrecords, err := client.LoadAllAtIndex("getiantem.org", records.Response.Recs.Count-1)
-		if err != nil {
-			log.Println("Error retrieving record!", err)
-			return
-		}
-		log.Println("Loaded more records...", newrecords.Response.Recs.Count)
-		recs = append(recs, newrecords.Response.Recs.Records...)
+		return getAllRecordsByIndex(client, response.Response.Recs.Count, response)
 	} else {
 		log.Println("Not loading additional records. Loaded: ", records.Response.Recs.Count)
+		return response, nil
 	}
+
+}
+
+func loopThroughRecords(client *cloudflare.Client) {
+	records, err := getAllRecords(client)
+	if err != nil {
+		log.Println("Error retrieving record!", err)
+		return
+	}
+	log.Println("Loaded all records...", records.Response.Recs.Count)
+
+	recs := records.Response.Recs.Records
 
 	log.Println("Total records loaded: ", len(recs))
 
-	// Loop through once to hit all the peers to see if they fail.
-
-	// All failed peers.
-	failed := make([]*cloudflare.Record, 0)
-
-	// All successful peers.
-	successful := make([]*cloudflare.Record, 0)
-
+	// Loop through everything to do some bookkeeping and to put 
+	// records in their appropriate categories.
+	
 	// All peers.
 	peers := make([]cloudflare.Record, 0)
 
@@ -82,7 +104,6 @@ func loopThroughRecords(client *cloudflare.Client) {
 		if len(record.Name) == 32 {
 			log.Println("PEER: ", record.Value)
 			peers = append(peers, record)
-			//go testPeer(client, record, c)
 		} else if record.Name == "roundrobin" {
 			log.Println("IN ROUNDROBIN IP: ", record.Name, record.Value)
 			roundrobin = append(roundrobin, record)
@@ -90,8 +111,6 @@ func loopThroughRecords(client *cloudflare.Client) {
 			log.Println("NON-PEER IP: ", record.Name, record.Value)
 		}
 	}
-
-	log.Printf("RESULTS: SUCCESSES: %v FAILURES: %v\n", len(successful), len(failed))
 
 	log.Printf("IN ROUNDROBIN: %v", len(roundrobin))
 
