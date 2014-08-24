@@ -174,61 +174,6 @@ func loopThroughRecords(client *cloudflare.Client) {
 	}
 	*/
 
-	/*
-		for _, r := range roundrobin {
-			//log.Println("Testing roundrobin entry: ", r.Value)
-
-				go func() {
-					log.Println("CALLING BACK TO roundrobin entry: ", r.Value)
-					success := callbackToPeer(r.Value)
-					if !success {
-						log.Println("Destroying roundrobin record: ", r.Value)
-						go client.DestroyRecord(r.Domain, r.Id)
-					} else {
-						log.Println("Ignoring successful roundrobin record: ", r.Value)
-					}
-				}()
-
-			//pending <- r
-		}
-	*/
-	//log.Println("Checking complete records...")
-
-	/*
-		go func() {
-			for r := range complete {
-				if !r.success {
-					log.Println("Destroying roundrobin record: ", r.rec.Value)
-					go client.DestroyRecord(r.rec.Domain, r.rec.Id)
-				} else {
-					log.Println("Ignoring successful roundrobin record: ", r.rec.Value)
-				}
-			}
-		}()
-	*/
-
-	//log.Println("Destroyed all failing records")
-
-	// Now loop through and add any successful IPs that aren't
-	// already in the roundrobin.
-	/*
-		for _, record := range successful {
-			log.Println("PEER: ", record.Name)
-			rr := false
-			for _, rec := range roundrobin {
-				if rec.Value == record.Value {
-					log.Println("Peer is already in round robin: ", record.Value)
-					rr = true
-					break
-				}
-			}
-			if !rr {
-				// Disabled for now.
-				//addToRoundRobin(client, record)
-			}
-		}
-	*/
-
 	// Sleep here instead to make sure records have propagated to CloudFlare internally.
 	log.Println("Sleeping!")
 	time.Sleep(10 * time.Second)
