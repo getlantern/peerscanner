@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	//"sync"
-	"strings"
 	"github.com/getlantern/cloudflare"
 	"time"
 
@@ -114,15 +113,11 @@ func loopThroughRecords(client *cloudflare.Client) {
 		}
 	}
 
-	log.Printf("IN ROUNDROBIN: %v", len(roundrobin))
-	for _, r := range roundrobin {
-		//go testPeer(client, r, successes, failures)
-		if !strings.HasPrefix(r.Value, "128") {
-			client.DestroyRecord(CF_DOMAIN, r.Id)
-		}
-	}
+	log.Printf("HOSTS IN PEERS: %v", len(peers))
+	log.Printf("HOSTS IN ROUNDROBIN: %v", len(roundrobin))
 
-	/*
+	//removeAllPeers(client, peers)
+
 	successes := make(chan cloudflare.Record)
 	failures := make(chan cloudflare.Record)
 
@@ -160,6 +155,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 					if rec.Value == r.Value {
 						log.Println("Deleting peer from round robin: ", r.Value)
 						client.DestroyRecord(CF_DOMAIN, rec.Id)
+						client.DestroyRecord(rec.Domain, rec.Id)
 					}
 				}
 				client.DestroyRecord(r.Domain, r.Id)
@@ -172,7 +168,6 @@ func loopThroughRecords(client *cloudflare.Client) {
 			}
 		}
 	}
-	*/
 
 	// Sleep here instead to make sure records have propagated to CloudFlare internally.
 	log.Println("Sleeping!")
@@ -180,6 +175,14 @@ func loopThroughRecords(client *cloudflare.Client) {
 	//close(complete)
 
 	log.Println("Waiting for additions")
+}
+
+func removeAllPeers(client *cloudflare.Client, peers []cloudflare.Record) {
+	for _, r := range peers {
+		log.Println("Removing peer: ", r.Value)
+		client.DestroyRecord(r.Domain, r.Id)
+		client.DestroyRecord(CF_DOMAIN, r.Id)
+	}
 }
 
 func callbackToPeer(upstreamHost string) bool {
@@ -259,7 +262,7 @@ func clientFor(upstreamHost string, masqueradeHost string, rootCA string) *http.
 		UpstreamHost:   upstreamHost,
 		UpstreamPort:   443,
 		MasqueradeAs: masqueradeHost,
-		DialTimeout:    8 * time.Second,
+		DialTimeout:    5 * time.Second,
 		RootCA:         rootCA,
 	}
 
