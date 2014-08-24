@@ -8,6 +8,7 @@ import (
 	"strconv"
 	//"io/ioutil"
 	"strings"
+	"time"
 
 	"github.com/getlantern/cloudflare"
 	"github.com/getlantern/flashlight/proxy"
@@ -87,7 +88,7 @@ func callbackToPeer(upstreamHost string) bool {
 		UpstreamHost:       upstreamHost,
 		UpstreamPort:       443,
 		InsecureSkipVerify: true,
-		DialTimeout:    5 * time.Second
+		DialTimeout:    5 * time.Second,
 	}
 
 	flashlightClient.BuildEnproxyConfig()
