@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	//"sync"
+	"strings"
 	"github.com/getlantern/cloudflare"
 	"time"
 
@@ -116,7 +117,9 @@ func loopThroughRecords(client *cloudflare.Client) {
 	log.Printf("HOSTS IN PEERS: %v", len(peers))
 	log.Printf("HOSTS IN ROUNDROBIN: %v", len(roundrobin))
 
-	removeAllPeers(client, peers)
+	removeAllPeersFromRoundRobin(client, roundrobin)
+
+	//removeAllPeers(client, peers)
 
 	/*
 	successes := make(chan cloudflare.Record)
@@ -169,8 +172,8 @@ func loopThroughRecords(client *cloudflare.Client) {
 			}
 		}
 	}
-
 	*/
+
 	// Sleep here instead to make sure records have propagated to CloudFlare internally.
 	log.Println("Sleeping!")
 	time.Sleep(10 * time.Second)
@@ -184,6 +187,14 @@ func removeAllPeers(client *cloudflare.Client, peers []cloudflare.Record) {
 		log.Println("Removing peer: ", r.Value)
 		client.DestroyRecord(r.Domain, r.Id)
 		client.DestroyRecord(CF_DOMAIN, r.Id)
+	}
+}
+
+func removeAllPeersFromRoundRobin(client *cloudflare.Client, roundrobin []cloudflare.Record) {
+	for _, r := range roundrobin {
+		if !strings.HasPrefix(r.Value, "128") {
+			client.DestroyRecord(CF_DOMAIN, r.Id)
+		}
 	}
 }
 
