@@ -303,7 +303,7 @@ func clientFor(upstreamHost string, masqueradeHost string, rootCA string) *http.
 	flashlightClient := &proxy.Client{
 		UpstreamHost:   upstreamHost,
 		UpstreamPort:   443,
-		MasqueradeHost: masqueradeHost,
+		MasqueradeAs: masqueradeHost,
 		DialTimeout:    8 * time.Second,
 		RootCA:         rootCA,
 	}
