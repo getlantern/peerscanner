@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	//"sync"
+	"strings"
 	"github.com/getlantern/cloudflare"
 	"time"
 
@@ -114,9 +115,16 @@ func loopThroughRecords(client *cloudflare.Client) {
 	}
 
 	log.Printf("IN ROUNDROBIN: %v", len(roundrobin))
+	for _, r := range roundrobin {
+		//go testPeer(client, r, successes, failures)
+		if !strings.HasPrefix(r.Value, "128") {
+			client.DestroyRecord(CF_DOMAIN, r.Id)
+		}
+	}
 
 	successes := make(chan cloudflare.Record)
 	failures := make(chan cloudflare.Record)
+
 	for _, r := range peers {
 		go testPeer(client, r, successes, failures)
 	}
