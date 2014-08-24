@@ -122,6 +122,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 		}
 	}
 
+	/*
 	successes := make(chan cloudflare.Record)
 	failures := make(chan cloudflare.Record)
 
@@ -171,6 +172,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 			}
 		}
 	}
+	*/
 
 	/*
 		for _, r := range roundrobin {
