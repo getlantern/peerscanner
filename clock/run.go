@@ -116,8 +116,9 @@ func loopThroughRecords(client *cloudflare.Client) {
 	log.Printf("HOSTS IN PEERS: %v", len(peers))
 	log.Printf("HOSTS IN ROUNDROBIN: %v", len(roundrobin))
 
-	//removeAllPeers(client, peers)
+	removeAllPeers(client, peers)
 
+	/*
 	successes := make(chan cloudflare.Record)
 	failures := make(chan cloudflare.Record)
 
@@ -169,6 +170,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 		}
 	}
 
+	*/
 	// Sleep here instead to make sure records have propagated to CloudFlare internally.
 	log.Println("Sleeping!")
 	time.Sleep(10 * time.Second)
