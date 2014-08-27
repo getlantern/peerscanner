@@ -88,6 +88,10 @@ func loopThroughRecords(client *cloudflare.Client) {
 	}
 	log.Println("Loaded all records...", records.Response.Recs.Count)
 
+	// Sleep here instead to make sure records have propagated to CloudFlare internally.
+	log.Println("Sleeping!")
+	time.Sleep(10 * time.Second)
+
 	recs := records.Response.Recs.Records
 
 	log.Println("Total records loaded: ", len(recs))
@@ -175,10 +179,6 @@ func loopThroughRecords(client *cloudflare.Client) {
 			}
 		}
 	}
-
-	// Sleep here instead to make sure records have propagated to CloudFlare internally.
-	log.Println("Sleeping!")
-	time.Sleep(10 * time.Second)
 	//close(complete)
 
 	log.Println("Waiting for additions")
