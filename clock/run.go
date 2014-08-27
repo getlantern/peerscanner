@@ -157,8 +157,12 @@ func loopThroughRecords(client *cloudflare.Client) {
 				for _, rec := range roundrobin {
 					if rec.Value == r.Value {
 						log.Println("Deleting peer from round robin: ", r.Value)
-						client.DestroyRecord(CF_DOMAIN, rec.Id)
+
+						// Destroy the peer in the roundrobin...
 						client.DestroyRecord(rec.Domain, rec.Id)
+
+						// as well as the peer itself.
+						client.DestroyRecord(r.Domain, r.Id)
 					}
 				}
 				client.DestroyRecord(r.Domain, r.Id)
@@ -180,13 +184,17 @@ func loopThroughRecords(client *cloudflare.Client) {
 	log.Println("Waiting for additions")
 }
 
+/*
 func removeAllPeers(client *cloudflare.Client, peers []cloudflare.Record) {
 	for _, r := range peers {
 		log.Println("Removing peer: ", r.Value)
 		client.DestroyRecord(r.Domain, r.Id)
+
+		// TODO: THIS IS WRONG -- SHOULD SEARCH FOR THE IP IN THE ROUNDROBIN
 		client.DestroyRecord(CF_DOMAIN, r.Id)
 	}
 }
+*/
 
 func removeAllPeersFromRoundRobin(client *cloudflare.Client, roundrobin []cloudflare.Record) {
 	for _, r := range roundrobin {
