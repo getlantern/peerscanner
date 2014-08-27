@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/cloudflare"
 	"github.com/getlantern/flashlight/proxy"
 )
@@ -76,6 +77,13 @@ func removeFromDns(reg *Reg) {
 	// Make sure we destroy the record on CloudFlare if it
 	// didn't work.
 	log.Println("Destroying record for: ", reg.Name)
+	err = common.RemoveIpFromRoundRobin(client, rec.Value)
+	if err != nil {
+		log.Println("Error deleting peer record from roundrobin! ", err)
+	} else {
+		log.Println("Removed DNS record from roundrobin for ", reg.Ip)
+	}
+
 	err = client.DestroyRecord(CF_DOMAIN, rec.Id)
 	if err != nil {
 		log.Println("Error deleting peer record! ", err)

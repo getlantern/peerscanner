@@ -8,6 +8,7 @@ import (
 	//"sync"
 	"strings"
 	"github.com/getlantern/cloudflare"
+	"github.com/getlantern/peerscanner/common"
 	"time"
 
 	"github.com/getlantern/flashlight/proxy"
@@ -39,49 +40,8 @@ func main() {
 
 }
 
-func getAllRecords(client *cloudflare.Client) (*cloudflare.RecordsResponse, error) {
-	records, err := client.LoadAll("getiantem.org")
-	if err != nil {
-		log.Println("Error retrieving record!", err)
-		return nil, err
-	}
-
-	log.Println("Loaded original records...", records.Response.Recs.Count)
-
-	//recs := records.Response.Recs.Records
-
-	if records.Response.Recs.HasMore {
-		return getAllRecordsByIndex(client, records.Response.Recs.Count, records)
-	}
-	return records, nil
-}
-
-func getAllRecordsByIndex(client *cloudflare.Client, index int, response *cloudflare.RecordsResponse) (*cloudflare.RecordsResponse, error) {
-
-	records, err := client.LoadAllAtIndex("getiantem.org", index)
-	if err != nil {
-		log.Println("Error retrieving record!", err)
-		return nil, err
-	}
-
-	log.Println("Loaded original records...", records.Response.Recs.Count)
-
-	response.Response.Recs.Records = append(response.Response.Recs.Records, records.Response.Recs.Records...)
-
-	response.Response.Recs.Count = response.Response.Recs.Count + records.Response.Recs.Count
-
-	if records.Response.Recs.HasMore {
-		log.Println("Adding additional records")
-		return getAllRecordsByIndex(client, response.Response.Recs.Count, response)
-	} else {
-		log.Println("Not loading additional records. Loaded: ", records.Response.Recs.Count)
-		return response, nil
-	}
-
-}
-
 func loopThroughRecords(client *cloudflare.Client) {
-	records, err := getAllRecords(client)
+	records, err := common.GetAllRecords(client)
 	if err != nil {
 		log.Println("Error retrieving record!", err)
 		return
@@ -105,7 +65,6 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// All entries in the round robin.
 	roundrobin := make([]cloudflare.Record, 0)
 
-	//var wg sync.WaitGroup
 	for _, record := range recs {
 		if len(record.Name) == 32 {
 			log.Println("PEER: ", record.Value)
