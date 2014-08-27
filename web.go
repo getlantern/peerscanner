@@ -89,7 +89,7 @@ func callbackToPeer(upstreamHost string) bool {
 		UpstreamHost:       upstreamHost,
 		UpstreamPort:       443,
 		InsecureSkipVerify: true,
-		DialTimeout:    5 * time.Second,
+		DialTimeout:    6 * time.Second,
 	}
 
 	flashlightClient.BuildEnproxyConfig()
@@ -144,7 +144,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 
 func requestToReg(r *http.Request) (*Reg, error) {
 	name := r.FormValue("name")
-	log.Println("Read name: ", name)
+	//log.Println("Read name: ", name)
 	ip := clientIpFor(r)
 	portString := r.FormValue("port")
 
