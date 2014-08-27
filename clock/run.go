@@ -134,54 +134,55 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	if len(peers) > 0 {
 		responses := 0
-		for {
-			select {
-			case r := <-successes:
-				log.Printf("%s was successful\n", r.Value)
-				responses++
+		OuterLoop:
+			for {
+				select {
+				case r := <-successes:
+					log.Printf("%s was successful\n", r.Value)
+					responses++
 
-				// Check to see if the peer is already in the round robin
-				rr := false
-				for _, rec := range roundrobin {
-					if rec.Value == r.Value {
-						log.Println("Peer is already in round robin: ", r.Value)
-						rr = true
-						break
+					// Check to see if the peer is already in the round robin
+					rr := false
+					for _, rec := range roundrobin {
+						if rec.Value == r.Value {
+							log.Println("Peer is already in round robin: ", r.Value)
+							rr = true
+							break
+						}
 					}
-				}
-				if !rr {
-					addToRoundRobin(client, r)
-				}
-				if responses == len(peers) {
-					return
-				}
-			case r := <-failures:
-				log.Printf("%s failed\n", r.Value)
-				responses++
-				for _, rec := range roundrobin {
-					if rec.Value == r.Value {
-						log.Println("Deleting peer from round robin: ", r.Value)
-
-						// Destroy the peer in the roundrobin...
-						client.DestroyRecord(rec.Domain, rec.Id)
-
-						// as well as the peer itself.
-						client.DestroyRecord(r.Domain, r.Id)
+					if !rr {
+						addToRoundRobin(client, r)
 					}
+					if responses == len(peers) {
+						break OuterLoop
+					}
+				case r := <-failures:
+					log.Printf("%s failed\n", r.Value)
+					responses++
+					for _, rec := range roundrobin {
+						if rec.Value == r.Value {
+							log.Println("Deleting peer from round robin: ", r.Value)
+
+							// Destroy the peer in the roundrobin...
+							client.DestroyRecord(rec.Domain, rec.Id)
+
+							// as well as the peer itself.
+							client.DestroyRecord(r.Domain, r.Id)
+						}
+					}
+					client.DestroyRecord(r.Domain, r.Id)
+					if responses == len(peers) {
+						break OuterLoop
+					}
+				case <-time.After(20 * time.Second):
+					fmt.Printf(".")
+					break OuterLoop
 				}
-				client.DestroyRecord(r.Domain, r.Id)
-				if responses == len(peers) {
-					return
-				}
-			case <-time.After(20 * time.Second):
-				fmt.Printf(".")
-				return
 			}
-		}
 	}
 	//close(complete)
 
-	log.Println("Waiting for additions")
+	log.Println("Pass complete")
 }
 
 /*
