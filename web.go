@@ -1,6 +1,7 @@
 package main
 
 import (
+	"common"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	//"io/ioutil"
 	"strings"
 	"time"
-    "github.com/getlantern/peerscanner/common"
 
 	"github.com/getlantern/cloudflare"
 	"github.com/getlantern/flashlight/proxy"
