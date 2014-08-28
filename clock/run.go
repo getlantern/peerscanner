@@ -81,8 +81,6 @@ func loopThroughRecords(client *cloudflare.Client) {
 		}
 	}
 
-	addServersFromRoundRobin(client, roundrobin)
-
 	log.Printf("HOSTS IN PEERS: %v", len(peers))
 	log.Printf("HOSTS IN ROUNDROBIN: %v", len(roundrobin))
 
@@ -160,14 +158,6 @@ func removeAllPeers(client *cloudflare.Client, peers []cloudflare.Record) {
 	}
 }
 */
-
-func addServersFromRoundRobin(client *cloudflare.Client, roundrobin []cloudflare.Record) {
-	for _, r := range roundrobin {
-		if strings.HasPrefix(r.Value, "128") {
-			addToSubdomain(client, r, FALLBACKS)
-		}
-	}
-}
 
 func removeAllPeersFromRoundRobin(client *cloudflare.Client, roundrobin []cloudflare.Record) {
 	for _, r := range roundrobin {
