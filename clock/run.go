@@ -8,9 +8,9 @@ import (
 	//"sync"
 	"strings"
 	"github.com/getlantern/cloudflare"
-	"github.com/getlantern/peerscanner/common"
 	"time"
 
+	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/flashlight/proxy"
 )
 
@@ -213,8 +213,6 @@ func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- clo
 	if err != nil {
 		fmt.Errorf("HTTP Error: %s", resp)
 		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
-		//cf.DestroyRecord(CF_DOMAIN, rec.Id)
-		//cf.DestroyRecord(rec.Domain, rec.Id)
 		failures <- rec
 		return false
 	} else {

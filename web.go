@@ -9,8 +9,8 @@ import (
 	//"io/ioutil"
 	"strings"
 	"time"
+    "github.com/getlantern/peerscanner/common"
 
-	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/cloudflare"
 	"github.com/getlantern/flashlight/proxy"
 )
@@ -97,7 +97,11 @@ func callbackToPeer(upstreamHost string) bool {
 		UpstreamHost:       upstreamHost,
 		UpstreamPort:       443,
 		InsecureSkipVerify: true,
-		DialTimeout:    6 * time.Second,
+		// We use a higher timeout on this initial check
+		// because we're just verifying some form of 
+		// connectivity. We vet peers using a more aggressive
+		// check later.
+		DialTimeout:    12 * time.Second,
 	}
 
 	flashlightClient.BuildEnproxyConfig()
