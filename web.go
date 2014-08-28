@@ -1,7 +1,7 @@
 package main
 
 import (
-	"common"
+	//"common"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/cloudflare"
 	"github.com/getlantern/flashlight/proxy"
 )
