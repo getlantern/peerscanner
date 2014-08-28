@@ -125,9 +125,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 							// Destroy the peer in the roundrobin...
 							client.DestroyRecord(rec.Domain, rec.Id)
-
-							// as well as the peer itself.
-							client.DestroyRecord(r.Domain, r.Id)
+							break
 						}
 					}
 					client.DestroyRecord(r.Domain, r.Id)
