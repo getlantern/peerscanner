@@ -44,8 +44,8 @@
 		},
 		{
 			"ImportPath": "gopkg.in/getlantern/tlsdialer.v1",
-			"Comment": "v1",
-			"Rev": "673ffe6dd2ccada5e53c8b0ca6c14245fb5c3ad8"
+			"Comment": "v1-4-gb7b903a",
+			"Rev": "b7b903a405234b76a498d4c9d6fb4d4e347236f0"
 		}
 	]
 }
