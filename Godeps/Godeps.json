@@ -21,18 +21,18 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/client",
-			"Comment": "0.0.2-66-g32d42a1",
-			"Rev": "32d42a13ed29b7e7a430a6c9e911cd87a05a7b67"
+			"Comment": "0.0.2-70-ga335610",
+			"Rev": "a3356100a9316988ddf95997551c39da1d31cc43"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/log",
-			"Comment": "0.0.2-66-g32d42a1",
-			"Rev": "32d42a13ed29b7e7a430a6c9e911cd87a05a7b67"
+			"Comment": "0.0.2-70-ga335610",
+			"Rev": "a3356100a9316988ddf95997551c39da1d31cc43"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/proxy",
-			"Comment": "0.0.2-66-g32d42a1",
-			"Rev": "32d42a13ed29b7e7a430a6c9e911cd87a05a7b67"
+			"Comment": "0.0.2-70-ga335610",
+			"Rev": "a3356100a9316988ddf95997551c39da1d31cc43"
 		},
 		{
 			"ImportPath": "github.com/getlantern/idletiming",
