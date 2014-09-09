@@ -120,8 +120,8 @@ func clientFor(upstreamHost string) *http.Client {
 		DialTimeoutMillis: 12000,
 		InsecureSkipVerify: true,
 	}
-	masquerade := &client.Masquerade{common.MASQUERADE_AS, common.ROOT_CA}
-	httpClient := client.HttpClient(serverInfo, masquerade)
+	//masquerade := &client.Masquerade{common.MASQUERADE_AS, common.ROOT_CA}
+	httpClient := client.HttpClient(serverInfo, nil)
 
 	return httpClient
 }
