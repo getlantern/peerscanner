@@ -17,32 +17,22 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/enproxy",
-			"Comment": "prehttpconnmerge-179-gad95284",
-			"Rev": "ad952841056d7be93447b93bed4f86a59a51beb0"
+			"Rev": "96556a2d12e9401d9a29f04b31a3518671068841"
 		},
 		{
-			"ImportPath": "github.com/getlantern/eventsource",
-			"Rev": "9cd55e34d9c68eb30b161dfb2d24c8130cb05545"
+			"ImportPath": "github.com/getlantern/flashlight/client",
+			"Comment": "0.0.2-66-g32d42a1",
+			"Rev": "32d42a13ed29b7e7a430a6c9e911cd87a05a7b67"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/log",
-			"Comment": "0.0.2-9-gb16b1ec",
-			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
+			"Comment": "0.0.2-66-g32d42a1",
+			"Rev": "32d42a13ed29b7e7a430a6c9e911cd87a05a7b67"
 		},
 		{
 			"ImportPath": "github.com/getlantern/flashlight/proxy",
-			"Comment": "0.0.2-9-gb16b1ec",
-			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
-		},
-		{
-			"ImportPath": "github.com/getlantern/flashlight/statreporter",
-			"Comment": "0.0.2-9-gb16b1ec",
-			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
-		},
-		{
-			"ImportPath": "github.com/getlantern/flashlight/statserver",
-			"Comment": "0.0.2-9-gb16b1ec",
-			"Rev": "b16b1ec719af1d8a704a287d32eb2b4893b218e7"
+			"Comment": "0.0.2-66-g32d42a1",
+			"Rev": "32d42a13ed29b7e7a430a6c9e911cd87a05a7b67"
 		},
 		{
 			"ImportPath": "github.com/getlantern/idletiming",
@@ -53,8 +43,9 @@
 			"Rev": "419f9e1573657e4bd14f33ada17c819f11f60809"
 		},
 		{
-			"ImportPath": "github.com/getlantern/tls",
-			"Rev": "c26f6d9c4b17213b1bd78a734465f2e33be3d12f"
+			"ImportPath": "gopkg.in/getlantern/tlsdialer.v1",
+			"Comment": "v1",
+			"Rev": "673ffe6dd2ccada5e53c8b0ca6c14245fb5c3ad8"
 		}
 	]
 }

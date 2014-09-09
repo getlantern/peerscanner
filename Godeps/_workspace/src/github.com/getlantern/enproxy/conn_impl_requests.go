@@ -57,7 +57,7 @@ func (c *Conn) processRequests() {
 			resp, err = c.doRequest(proxyConn, bufReader, proxyHost, OP_WRITE, reqBody)
 			c.requestFinishedCh <- err
 			if err != nil {
-				err = fmt.Errorf("Unable to issue write request: %s", err)
+				err = fmt.Errorf("Unable to issue write request to %s: %s", proxyHost, err)
 				log.Println(err.Error())
 				if first {
 					c.initialResponseCh <- hostWithResponse{"", nil, err}
@@ -102,10 +102,16 @@ func (c *Conn) submitRequest(body []byte) bool {
 }
 
 func (c *Conn) cleanupAfterRequests(resp *http.Response) {
+	panicked := recover()
+
 	for {
 		select {
 		case <-c.requestOutCh:
-			c.requestFinishedCh <- io.EOF
+			if panicked != nil {
+				c.requestFinishedCh <- io.ErrUnexpectedEOF
+			} else {
+				c.requestFinishedCh <- io.EOF
+			}
 		case <-c.stopRequestCh:
 			// do nothing
 		default:

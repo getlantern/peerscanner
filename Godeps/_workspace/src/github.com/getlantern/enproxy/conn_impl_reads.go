@@ -65,7 +65,7 @@ func (c *Conn) processReads() {
 				// Then, issue a new request
 				resp, err = c.doRequest(proxyConn, bufReader, proxyHost, OP_READ, nil)
 				if err != nil {
-					err = fmt.Errorf("Unable to issue read request: %s", err)
+					err = fmt.Errorf("Unable to issue read request to %s: %s", proxyHost, err)
 					log.Println(err.Error())
 					c.readResponsesCh <- rwResponse{0, err}
 					return
@@ -128,10 +128,16 @@ func (c *Conn) submitRead(b []byte) bool {
 }
 
 func (c *Conn) cleanupAfterReads(resp *http.Response) {
+	panicked := recover()
+
 	for {
 		select {
 		case <-c.readRequestsCh:
-			c.readResponsesCh <- rwResponse{0, io.EOF}
+			if panicked != nil {
+				c.readResponsesCh <- rwResponse{0, io.ErrUnexpectedEOF}
+			} else {
+				c.readResponsesCh <- rwResponse{0, io.EOF}
+			}
 		case <-c.stopReadCh:
 			// do nothing
 		default:

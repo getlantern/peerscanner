@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/getlantern/peerscanner/common"
-	"github.com/getlantern/flashlight/proxy"
+	"github.com/getlantern/flashlight/client"
 )
 
 const (
@@ -20,14 +20,7 @@ const (
 	ROUNDROBIN    = "roundrobin"
 	PEERS         = "peers"
 	FALLBACKS     = "fallbacks"
-	MASQUERADE_AS = "cdnjs.com"
-	ROOT_CA       = "-----BEGIN CERTIFICATE-----\nMIIDdTCCAl2gAwIBAgILBAAAAAABFUtaw5QwDQYJKoZIhvcNAQEFBQAwVzELMAkG\nA1UEBhMCQkUxGTAXBgNVBAoTEEdsb2JhbFNpZ24gbnYtc2ExEDAOBgNVBAsTB1Jv\nb3QgQ0ExGzAZBgNVBAMTEkdsb2JhbFNpZ24gUm9vdCBDQTAeFw05ODA5MDExMjAw\nMDBaFw0yODAxMjgxMjAwMDBaMFcxCzAJBgNVBAYTAkJFMRkwFwYDVQQKExBHbG9i\nYWxTaWduIG52LXNhMRAwDgYDVQQLEwdSb290IENBMRswGQYDVQQDExJHbG9iYWxT\naWduIFJvb3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDaDuaZ\njc6j40+Kfvvxi4Mla+pIH/EqsLmVEQS98GPR4mdmzxzdzxtIK+6NiY6arymAZavp\nxy0Sy6scTHAHoT0KMM0VjU/43dSMUBUc71DuxC73/OlS8pF94G3VNTCOXkNz8kHp\n1Wrjsok6Vjk4bwY8iGlbKk3Fp1S4bInMm/k8yuX9ifUSPJJ4ltbcdG6TRGHRjcdG\nsnUOhugZitVtbNV4FpWi6cgKOOvyJBNPc1STE4U6G7weNLWLBYy5d4ux2x8gkasJ\nU26Qzns3dLlwR5EiUWMWea6xrkEmCMgZK9FGqkjWZCrXgzT/LCrBbBlDSgeF59N8\n9iFo7+ryUp9/k5DPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBRge2YaRQ2XyolQL30EzTSo//z9SzANBgkqhkiG9w0B\nAQUFAAOCAQEA1nPnfE920I2/7LqivjTFKDK1fPxsnCwrvQmeU79rXqoRSLblCKOz\nyj1hTdNGCbM+w6DjY1Ub8rrvrTnhQ7k4o+YviiY776BQVvnGCv04zcQLcFGUl5gE\n38NflNUVyRRBnMRddWQVDf9VMOyGj/8N7yy5Y0b2qvzfvGn9LhJIZJrglfCm7ymP\nAbEVtQwdpf5pLGkkeB6zpxxxYu7KyJesF12KwvhHhm4qxFYxldBniYUr+WymXUad\nDKqC5JlR3XC321Y9YeRq4VzW9v493kHMB65jUr9TU/Qr6cf9tveCX4XSQRjbgbME\nHMUfpIBvFSDJ3gyICh3WZlXi/EjJKSZp4A==\n-----END CERTIFICATE-----\n"
 )
-
-type RecordTest struct {
-	rec     cloudflare.Record
-	success bool
-}
 
 func main() {
 	log.Println("Starting CloudFlare Flashlight Tests...")
@@ -92,8 +85,10 @@ func loopThroughRecords(client *cloudflare.Client) {
 	failures := make(chan cloudflare.Record)
 
 	for _, r := range peers {
-		go testPeer(client, r, successes, failures)
+		go testServer(client, r, successes, failures, 1)
 	}
+
+
 
 	if len(peers) > 0 {
 		responses := 0
@@ -108,7 +103,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 					rr := false
 					for _, rec := range roundrobin {
 						if rec.Value == r.Value {
-							log.Println("Peer is already in round robin: ", r.Value)
+							log.Println("Server is already in round robin: ", r.Value)
 							rr = true
 							break
 						}
@@ -125,7 +120,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 					responses++
 					for _, rec := range roundrobin {
 						if rec.Value == r.Value {
-							log.Println("Deleting peer from round robin: ", r.Value)
+							log.Println("Deleting server from round robin: ", r.Value)
 
 							// Destroy the peer in the roundrobin...
 							client.DestroyRecord(rec.Domain, rec.Id)
@@ -142,9 +137,70 @@ func loopThroughRecords(client *cloudflare.Client) {
 				}
 			}
 	}
+
+	// Now check to make sure all the servers are working as well. The danger
+	// here is that the server start failing because they're overloaded, 
+	// we start a cascading failure effect where we kill the most overloaded
+	// servers and add their load to the remaining ones, thereby making it
+	// much more likely those will fail as well. Our approach should take 
+	// this into account and should only kill servers if their failure rates
+	// are much higher than the others and likely leaving a reasonable number
+	// of servers in the mix no matter what.
+	successes = make(chan cloudflare.Record)
+	failures = make(chan cloudflare.Record)
+
+	for _, r := range roundrobin {
+		// Require many failures in a row for peers in the roundrobin, as those are
+		// servers of last resort (if we delete them all, we have a problem!)
+		// Only test non-peers since peers are already handled in the above 
+		// function.
+		if !isPeer(r, peers) {
+			go testServer(client, r, successes, failures, 4)
+		}
+	}
+
+	if len(roundrobin) > 0 {
+		responses := 0
+		OutOfFor:
+			for {
+				select {
+				case r := <-successes:
+					log.Printf("%s was successful\n", r.Value)
+					responses++
+					if responses == len(peers) {
+						break OutOfFor
+					}
+				case r := <-failures:
+					log.Printf("%s failed\n", r.Value)
+					responses++
+					log.Println("Deleting server from roundrobin - disabled for now: ", r.Value)
+
+					// Destroy the server in the roundrobin...
+					client.DestroyRecord(r.Domain, r.Id)
+
+					if responses == len(peers) {
+						break OutOfFor
+					}
+				case <-time.After(20 * time.Second):
+					fmt.Printf(".")
+					break OutOfFor
+				}
+			}
+	}
+
 	//close(complete)
 
 	log.Println("Pass complete")
+}
+
+func isPeer(r cloudflare.Record, peers []cloudflare.Record) bool {
+	for _, rec := range peers {
+		if rec.Value == r.Value {
+			log.Println("Found peer: ", r.Value)
+			return true
+		}
+	}
+	return false
 }
 
 /*
@@ -205,10 +261,25 @@ func addToSubdomain(client *cloudflare.Client, record cloudflare.Record, subdoma
 	}
 }
 
-func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- cloudflare.Record,
-	failures chan<- cloudflare.Record) bool {
+func testServer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- cloudflare.Record,
+	failures chan<- cloudflare.Record, attempts int) {
 
-	httpClient := clientFor(rec.Name+".getiantem.org", MASQUERADE_AS, ROOT_CA)
+	for i := 0; i < attempts; i++ {
+		success := runTest(cf, rec)
+
+		if success {
+			// If we get a single success we can exit the loop and consider it a success.
+			successes <- rec
+			break
+		} else if i == (attempts - 1) {
+			// If we get consecutive failures up to our threshhold, consider it a failure.
+			failures <- rec
+		}
+	}
+}
+
+func runTest(cf *cloudflare.Client, rec cloudflare.Record) bool {
+	httpClient := clientFor(rec.Name+".getiantem.org", common.MASQUERADE_AS, common.ROOT_CA)
 
 	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
 	resp, err := httpClient.Do(req)
@@ -216,7 +287,6 @@ func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- clo
 	if err != nil {
 		fmt.Errorf("HTTP Error: %s", resp)
 		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
-		failures <- rec
 		return false
 	} else {
 		body, err := ioutil.ReadAll(resp.Body)
@@ -224,37 +294,24 @@ func testPeer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- clo
 		if err != nil {
 			fmt.Errorf("HTTP Body Error: %s", body)
 			log.Println("Error reading body for peer: ", rec.Value)
-			//cf.remove(domain, id)
-			//c <- RecordTest{rec, false}
-			failures <- rec
 			return false
 		} else {
 			log.Printf("RESPONSE FOR PEER: %s, %s\n", rec.Value, body)
-			//c <- RecordTest{rec, true}
-			successes <- rec
 			return true
 		}
 	}
 }
 
+
 func clientFor(upstreamHost string, masqueradeHost string, rootCA string) *http.Client {
-	flashlightClient := &proxy.Client{
-		UpstreamHost:   upstreamHost,
-		UpstreamPort:   443,
-		MasqueradeAs: masqueradeHost,
-		DialTimeout:    5 * time.Second,
-		RootCA:         rootCA,
-	}
 
-	if rootCA == "" {
-		flashlightClient.InsecureSkipVerify = true
+	serverInfo := &client.ServerInfo{
+		Host: upstreamHost,
+		Port: 443,
+		DialTimeoutMillis: 5000,
 	}
+	masquerade := &client.Masquerade{masqueradeHost, rootCA}
+	httpClient := client.HttpClient(serverInfo, masquerade)
 
-	flashlightClient.BuildEnproxyConfig()
-
-	return &http.Client{
-		Transport: &http.Transport{
-			Dial: flashlightClient.DialWithEnproxy,
-		},
-	}
+	return httpClient
 }

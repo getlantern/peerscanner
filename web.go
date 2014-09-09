@@ -9,11 +9,11 @@ import (
 	"strconv"
 	//"io/ioutil"
 	"strings"
-	"time"
+	//"time"
 
 	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/cloudflare"
-	"github.com/getlantern/flashlight/proxy"
+	"github.com/getlantern/flashlight/client"
 )
 
 const (
@@ -41,7 +41,9 @@ func register(w http.ResponseWriter, request *http.Request) {
 		if callbackToPeer(reg.Ip) {
 			go func() {
 				if (reg.Ip == "23.243.192.92" || 
-					reg.Ip == "66.69.242.177") {
+					reg.Ip == "66.69.242.177" ||
+					reg.Ip == "83.45.165.48" ||
+					reg.Ip == "107.201.128.213") {
 				    log.Println("Registering peer: ", reg.Ip)	
 				    registerPeer(reg)
 				}
@@ -94,24 +96,7 @@ func removeFromDns(reg *Reg) {
 }
 
 func callbackToPeer(upstreamHost string) bool {
-	flashlightClient := &proxy.Client{
-		UpstreamHost:       upstreamHost,
-		UpstreamPort:       443,
-		InsecureSkipVerify: true,
-		// We use a higher timeout on this initial check
-		// because we're just verifying some form of 
-		// connectivity. We vet peers using a more aggressive
-		// check later.
-		DialTimeout:    12 * time.Second,
-	}
-
-	flashlightClient.BuildEnproxyConfig()
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: flashlightClient.DialWithEnproxy,
-		},
-	}
+	client := clientFor(upstreamHost)
 
 	resp, err := client.Head("http://www.google.com/humans.txt")
 	if err != nil {
@@ -122,6 +107,23 @@ func callbackToPeer(upstreamHost string) bool {
 		defer resp.Body.Close()
 		return true
 	}
+}
+
+func clientFor(upstreamHost string) *http.Client {
+	serverInfo := &client.ServerInfo{
+		Host: upstreamHost,
+		Port: 443,
+		// We use a higher timeout on this initial check
+		// because we're just verifying some form of 
+		// connectivity. We vet peers using a more aggressive
+		// check later.
+		DialTimeoutMillis: 12000,
+		InsecureSkipVerify: true,
+	}
+	masquerade := &client.Masquerade{common.MASQUERADE_AS, common.ROOT_CA}
+	httpClient := client.HttpClient(serverInfo, masquerade)
+
+	return httpClient
 }
 
 func registerPeer(reg *Reg) (*cloudflare.Record, error) {
