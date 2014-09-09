@@ -214,7 +214,7 @@ func isPeer(r cloudflare.Record) bool {
 	// We just check the length of the subdomain here, which is the unique
 	// peer GUID. While it's possible something else could have a subdomain
 	// this long, it's unlikely.
-	return len(r.Name) == 32 {
+	return len(r.Name) == 32
 }
 
 /*
