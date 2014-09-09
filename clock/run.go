@@ -59,84 +59,56 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// All peers.
 	peers := make([]cloudflare.Record, 0)
 
-	// All entries in the round robin.
-	roundrobin := make([]cloudflare.Record, 0)
+	// All servers
+	servers := make([]cloudflare.Record, 0)
+
+	// All entries in the general round robin.
+	mixedrr := make([]cloudflare.Record, 0)
+
+	// All entries in the fallback round robin.
+	fallbacksrr := make([]cloudflare.Record, 0)
+
+	// All entries in the peer round robin.
+	peersrr := make([]cloudflare.Record, 0)
 
 	for _, record := range recs {
-		if len(record.Name) == 32 {
+		// We just check the length of the subdomain here, which is the unique
+		// peer GUID. While it's possible something else could have a subdomain
+		// this long, it's unlikely.
+		if isPeer(record) {
 			log.Println("PEER: ", record.Value)
 			peers = append(peers, record)
+		} else if strings.HasPrefix(record.Name, "fl-") {
+			log.Println("SERVER: ", record.Name, record.Value)
+			servers = append(servers, record)
 		} else if record.Name == ROUNDROBIN {
-			log.Println("IN ROUNDROBIN IP: ", record.Name, record.Value)
-			roundrobin = append(roundrobin, record)
+			log.Println("IN ROUNDROBIN: ", record.Name, record.Value)
+			mixedrr = append(mixedrr, record)
+		} else if record.Name == PEERS {
+			log.Println("IN PEERS ROUNDROBIN: ", record.Name, record.Value)
+			peersrr = append(peersrr, record)
+		} else if record.Name == FALLBACKS {
+			log.Println("IN FALLBACK ROUNDROBIN: ", record.Name, record.Value)
+			fallbacksrr = append(fallbacksrr, record)
 		} else {
-			log.Println("NON-PEER IP: ", record.Name, record.Value)
+			log.Println("UNKNOWN ENTRY: ", record.Name, record.Value)
 		}
 	}
 
 	log.Printf("HOSTS IN PEERS: %v", len(peers))
-	log.Printf("HOSTS IN ROUNDROBIN: %v", len(roundrobin))
+	log.Printf("HOSTS IN ROUNDROBIN: %v", len(mixedrr))
+
+	roundrobins := make(map[string][]cloudflare.Record)
+	roundrobins[PEERS] = peersrr
+	roundrobins[FALLBACKS] = fallbacksrr
+	roundrobins[ROUNDROBIN] = mixedrr
 
 	//removeAllPeersFromRoundRobin(client, roundrobin)
 
 	//removeAllPeers(client, peers)
 
-	successes := make(chan cloudflare.Record)
-	failures := make(chan cloudflare.Record)
+	testGroup(client, peers, 1, roundrobins, PEERS)
 
-	for _, r := range peers {
-		go testServer(client, r, successes, failures, 1)
-	}
-
-
-
-	if len(peers) > 0 {
-		responses := 0
-		OuterLoop:
-			for {
-				select {
-				case r := <-successes:
-					log.Printf("%s was successful\n", r.Value)
-					responses++
-
-					// Check to see if the peer is already in the round robin
-					rr := false
-					for _, rec := range roundrobin {
-						if rec.Value == r.Value {
-							log.Println("Server is already in round robin: ", r.Value)
-							rr = true
-							break
-						}
-					}
-					if !rr {
-						addToSubdomain(client, r, ROUNDROBIN)
-						addToSubdomain(client, r, PEERS)
-					}
-					if responses == len(peers) {
-						break OuterLoop
-					}
-				case r := <-failures:
-					log.Printf("%s failed\n", r.Value)
-					responses++
-					for _, rec := range roundrobin {
-						if rec.Value == r.Value {
-							log.Println("Deleting server from round robin: ", r.Value)
-
-							// Destroy the peer in the roundrobin...
-							client.DestroyRecord(rec.Domain, rec.Id)
-							break
-						}
-					}
-					client.DestroyRecord(r.Domain, r.Id)
-					if responses == len(peers) {
-						break OuterLoop
-					}
-				case <-time.After(20 * time.Second):
-					fmt.Printf(".")
-					break OuterLoop
-				}
-			}
-	}
 
 	// Now check to make sure all the servers are working as well. The danger
 	// here is that the server start failing because they're overloaded, 
@@ -146,61 +118,103 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// this into account and should only kill servers if their failure rates
 	// are much higher than the others and likely leaving a reasonable number
 	// of servers in the mix no matter what.
-	successes = make(chan cloudflare.Record)
-	failures = make(chan cloudflare.Record)
-
-	for _, r := range roundrobin {
-		// Require many failures in a row for peers in the roundrobin, as those are
-		// servers of last resort (if we delete them all, we have a problem!)
-		// Only test non-peers since peers are already handled in the above 
-		// function.
-		if !isPeer(r, peers) {
-			go testServer(client, r, successes, failures, 4)
-		}
-	}
-
-	if len(roundrobin) > 0 {
-		responses := 0
-		OutOfFor:
-			for {
-				select {
-				case r := <-successes:
-					log.Printf("%s was successful\n", r.Value)
-					responses++
-					if responses == len(peers) {
-						break OutOfFor
-					}
-				case r := <-failures:
-					log.Printf("%s failed\n", r.Value)
-					responses++
-					log.Println("Deleting server from roundrobin - disabled for now: ", r.Value)
-
-					// Destroy the server in the roundrobin...
-					client.DestroyRecord(r.Domain, r.Id)
-
-					if responses == len(peers) {
-						break OutOfFor
-					}
-				case <-time.After(20 * time.Second):
-					fmt.Printf(".")
-					break OutOfFor
-				}
-			}
-	}
+	testGroup(client, servers, 6, roundrobins, FALLBACKS)
 
 	//close(complete)
 
 	log.Println("Pass complete")
 }
 
-func isPeer(r cloudflare.Record, peers []cloudflare.Record) bool {
-	for _, rec := range peers {
+// testGroup: Runs tests against a group of DNS records in CloudFlare to see if they work. The group should
+// not be a roundrobin group but rather a group of candidates servers, whether peers or not. If they work,
+// they'll be added. If they don't, depending on the specified number of attempts signifying a failure, 
+// they'll be removed.
+func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int, 
+	rrs map[string][]cloudflare.Record, group string) {
+	successes := make(chan cloudflare.Record)
+	failures := make(chan cloudflare.Record)
+
+	for _, r := range rr {
+		go testServer(client, r, successes, failures, attempts)
+	}
+
+	if len(rr) == 0 {
+		log.Println("No records in group")
+		return
+	}
+	responses := 0
+	OuterLoop:
+		for {
+			select {
+			case r := <-successes:
+				log.Printf("%s was successful\n", r.Value)
+				responses++
+
+				addToRoundRobin(client, r, rrs[group], group)
+				// Always add to the general roundrobin for now.
+				addToRoundRobin(client, r, rrs[ROUNDROBIN], ROUNDROBIN)
+				if responses == len(rr) {
+					break OuterLoop
+				}
+			case r := <-failures:
+				log.Printf("%s failed\n", r.Value)
+				responses++
+				removeFromRoundRobin(client, r, rrs[group])
+				removeFromRoundRobin(client, r, rrs[ROUNDROBIN])
+
+				// Only actually destroy the original record if it's for a peer.
+				// Otherwise, we might restart the server or something so it will
+				// work on a future pass.
+				if isPeer(r) {
+					client.DestroyRecord(r.Domain, r.Id)
+				}
+				if responses == len(rr) {
+					break OuterLoop
+				}
+			case <-time.After(20 * time.Second):
+				fmt.Printf(".")
+				// TODO: We should also remove any that didn't explictly succeed.
+				break OuterLoop
+			}
+		}
+}
+
+func addToRoundRobin(client *cloudflare.Client, r cloudflare.Record, rr []cloudflare.Record, group string) {
+	// Check to see if the peer is already in the round robin before making a call
+	// to the CloudFlare API.
+	if !inRoundRobin(r, rr) {
+		addToSubdomain(client, r, group)
+	}
+}
+
+func inRoundRobin(r cloudflare.Record, rr []cloudflare.Record) bool {
+	for _, rec := range rr {
 		if rec.Value == r.Value {
-			log.Println("Found peer: ", r.Value)
+			log.Println("Server is already in round robin: ", r.Value)
 			return true
 		}
 	}
 	return false
+}
+
+func removeFromRoundRobin(client *cloudflare.Client, r cloudflare.Record, rr []cloudflare.Record) {
+	for _, rec := range rr {
+		// Just look for the same IP.
+		if rec.Value == r.Value {
+			log.Println("Deleting server from round robin: ", r.Value)
+
+			// Destroy the record in the roundrobin...
+			client.DestroyRecord(rec.Domain, rec.Id)
+			break
+		}
+	}
+}
+
+func isPeer(r cloudflare.Record) bool {
+	// We just check the length of the subdomain here, which is the unique
+	// peer GUID. While it's possible something else could have a subdomain
+	// this long, it's unlikely.
+	return len(r.Name) == 32 {
 }
 
 /*
@@ -220,20 +234,6 @@ func removeAllPeersFromRoundRobin(client *cloudflare.Client, roundrobin []cloudf
 		if !strings.HasPrefix(r.Value, "128") {
 			client.DestroyRecord(CF_DOMAIN, r.Id)
 		}
-	}
-}
-
-func callbackToPeer(upstreamHost string) bool {
-	client := clientFor(upstreamHost, "", "")
-
-	resp, err := client.Head("http://www.google.com/humans.txt")
-	if err != nil {
-		log.Println("Direct HEAD request failed for IP ", upstreamHost)
-		return false
-	} else {
-		log.Println("Direct HEAD request succeeded ", upstreamHost)
-		defer resp.Body.Close()
-		return true
 	}
 }
 
