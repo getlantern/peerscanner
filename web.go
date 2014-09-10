@@ -1,7 +1,6 @@
 package main
 
 import (
-	//"common"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,11 +13,6 @@ import (
 	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/cloudflare"
 	"github.com/getlantern/flashlight/client"
-)
-
-const (
-	CF_DOMAIN = "getiantem.org"
-	STATUS_GATEWAY_TIMEOUT = 504
 )
 
 type Reg struct {
@@ -38,7 +32,8 @@ func register(w http.ResponseWriter, request *http.Request) {
 		// will find it there and will test it again
 		// end-to-end with the DNS provider before
 		// entering it into the round robin.
-		if callbackToPeer(reg.Ip) {
+		err = callbackToPeer(reg.Ip)
+		if err == nil {
 			go func() {
 				if (reg.Ip == "23.243.192.92" || 
 					reg.Ip == "66.69.242.177" ||
@@ -49,7 +44,17 @@ func register(w http.ResponseWriter, request *http.Request) {
 				}
 			}()
 		} else {
-			w.WriteHeader(STATUS_GATEWAY_TIMEOUT)
+			// Note this may not work across platforms, but the intent
+			// is to tell the client if the connection was flat out 
+			// refused as opposed to timed out in order to allow them
+			// to configure their router if possible.
+			if strings.Contains(err.Error(), "connection refused") {
+				// 417 response code.
+				w.WriteHeader(http.StatusExpectationFailed)
+			} else {
+				// 408 response code.
+				w.WriteHeader(http.StatusRequestTimeout)
+			}
 		}
 	}
 }
@@ -71,7 +76,7 @@ func removeFromDns(reg *Reg) {
 		return
 	}
 
-	rec, err := client.RetrieveRecordByName(CF_DOMAIN, reg.Name)
+	rec, err := client.RetrieveRecordByName(common.CF_DOMAIN, reg.Name)
 	if err != nil {
 		log.Println("Error retrieving record! ", err)
 		return
@@ -80,14 +85,22 @@ func removeFromDns(reg *Reg) {
 	// Make sure we destroy the record on CloudFlare if it
 	// didn't work.
 	log.Println("Destroying record for: ", reg.Name)
-	err = common.RemoveIpFromRoundRobin(client, rec.Value)
+	err = common.RemoveIpFromRoundRobin(client, rec.Value, common.ROUNDROBIN)
 	if err != nil {
 		log.Println("Error deleting peer record from roundrobin! ", err)
 	} else {
 		log.Println("Removed DNS record from roundrobin for ", reg.Ip)
 	}
 
-	err = client.DestroyRecord(CF_DOMAIN, rec.Id)
+	// Destroy it in the peers group as well as the general roundrobin
+	err = common.RemoveIpFromRoundRobin(client, rec.Value, common.PEERS)
+	if err != nil {
+		log.Println("Error deleting peer record from roundrobin! ", err)
+	} else {
+		log.Println("Removed DNS record from roundrobin for ", reg.Ip)
+	}
+
+	err = client.DestroyRecord(common.CF_DOMAIN, rec.Id)
 	if err != nil {
 		log.Println("Error deleting peer record! ", err)
 	} else {
@@ -95,17 +108,17 @@ func removeFromDns(reg *Reg) {
 	}
 }
 
-func callbackToPeer(upstreamHost string) bool {
+func callbackToPeer(upstreamHost string) error {
 	client := clientFor(upstreamHost)
 
 	resp, err := client.Head("http://www.google.com/humans.txt")
 	if err != nil {
-		log.Println("Direct HEAD request failed for IP ", upstreamHost)
-		return false
+		log.Printf("Direct HEAD request failed for IP %v with error %s", upstreamHost, err)
+		return err
 	} else {
 		log.Println("Direct HEAD request succeeded ", upstreamHost)
 		defer resp.Body.Close()
-		return true
+		return nil
 	}
 }
 
@@ -134,7 +147,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 	}
 
 	cr := cloudflare.CreateRecord{Type: "A", Name: reg.Name, Content: reg.Ip}
-	rec, err := client.CreateRecord(CF_DOMAIN, &cr)
+	rec, err := client.CreateRecord(common.CF_DOMAIN, &cr)
 
 	if err != nil {
 		log.Println("Could not create record? ", err)
@@ -146,7 +159,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 	// Note for some reason CloudFlare seems to ignore the TTL here.
 	ur := cloudflare.UpdateRecord{Type: "A", Name: reg.Name, Content: reg.Ip, Ttl: "360", ServiceMode: "1"}
 
-	err = client.UpdateRecord(CF_DOMAIN, rec.Id, &ur)
+	err = client.UpdateRecord(common.CF_DOMAIN, rec.Id, &ur)
 
 	if err != nil {
 		log.Println("Could not update record? ", err)

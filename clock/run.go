@@ -1,25 +1,16 @@
 package main
 
 import (
-    //"common"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	//"sync"
 	"strings"
 	"github.com/getlantern/cloudflare"
 	"time"
 
 	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/flashlight/client"
-)
-
-const (
-	CF_DOMAIN     = "getiantem.org"
-	ROUNDROBIN    = "roundrobin"
-	PEERS         = "peers"
-	FALLBACKS     = "fallbacks"
 )
 
 func main() {
@@ -81,13 +72,13 @@ func loopThroughRecords(client *cloudflare.Client) {
 		} else if strings.HasPrefix(record.Name, "fl-") {
 			log.Println("SERVER: ", record.Name, record.Value)
 			servers = append(servers, record)
-		} else if record.Name == ROUNDROBIN {
+		} else if record.Name == common.ROUNDROBIN {
 			log.Println("IN ROUNDROBIN: ", record.Name, record.Value)
 			mixedrr = append(mixedrr, record)
-		} else if record.Name == PEERS {
+		} else if record.Name == common.PEERS {
 			log.Println("IN PEERS ROUNDROBIN: ", record.Name, record.Value)
 			peersrr = append(peersrr, record)
-		} else if record.Name == FALLBACKS {
+		} else if record.Name == common.FALLBACKS {
 			log.Println("IN FALLBACK ROUNDROBIN: ", record.Name, record.Value)
 			fallbacksrr = append(fallbacksrr, record)
 		} else {
@@ -99,15 +90,15 @@ func loopThroughRecords(client *cloudflare.Client) {
 	log.Printf("HOSTS IN ROUNDROBIN: %v", len(mixedrr))
 
 	roundrobins := make(map[string][]cloudflare.Record)
-	roundrobins[PEERS] = peersrr
-	roundrobins[FALLBACKS] = fallbacksrr
-	roundrobins[ROUNDROBIN] = mixedrr
+	roundrobins[common.PEERS] = peersrr
+	roundrobins[common.FALLBACKS] = fallbacksrr
+	roundrobins[common.ROUNDROBIN] = mixedrr
 
 	//removeAllPeersFromRoundRobin(client, roundrobin)
 
 	//removeAllPeers(client, peers)
 
-	testGroup(client, peers, 1, roundrobins, PEERS)
+	testGroup(client, peers, 1, roundrobins, common.PEERS)
 
 
 	// Now check to make sure all the servers are working as well. The danger
@@ -118,7 +109,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// this into account and should only kill servers if their failure rates
 	// are much higher than the others and likely leaving a reasonable number
 	// of servers in the mix no matter what.
-	testGroup(client, servers, 6, roundrobins, FALLBACKS)
+	testGroup(client, servers, 6, roundrobins, common.FALLBACKS)
 
 	//close(complete)
 
@@ -152,7 +143,7 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 
 				addToRoundRobin(client, r, rrs[group], group)
 				// Always add to the general roundrobin for now.
-				addToRoundRobin(client, r, rrs[ROUNDROBIN], ROUNDROBIN)
+				addToRoundRobin(client, r, rrs[common.ROUNDROBIN], common.ROUNDROBIN)
 				if responses == len(rr) {
 					break OuterLoop
 				}
@@ -160,7 +151,7 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 				log.Printf("%s failed\n", r.Value)
 				responses++
 				removeFromRoundRobin(client, r, rrs[group])
-				removeFromRoundRobin(client, r, rrs[ROUNDROBIN])
+				removeFromRoundRobin(client, r, rrs[common.ROUNDROBIN])
 
 				// Only actually destroy the original record if it's for a peer.
 				// Otherwise, we might restart the server or something so it will
@@ -232,7 +223,7 @@ func removeAllPeers(client *cloudflare.Client, peers []cloudflare.Record) {
 func removeAllPeersFromRoundRobin(client *cloudflare.Client, roundrobin []cloudflare.Record) {
 	for _, r := range roundrobin {
 		if !strings.HasPrefix(r.Value, "128") {
-			client.DestroyRecord(CF_DOMAIN, r.Id)
+			client.DestroyRecord(common.CF_DOMAIN, r.Id)
 		}
 	}
 }
@@ -240,7 +231,7 @@ func removeAllPeersFromRoundRobin(client *cloudflare.Client, roundrobin []cloudf
 func addToSubdomain(client *cloudflare.Client, record cloudflare.Record, subdomain string) {
 	log.Println("ADDING IP TO ROUNDROBIN!!: ", record.Value)
 	cr := cloudflare.CreateRecord{Type: "A", Name: subdomain, Content: record.Value}
-	rec, err := client.CreateRecord(CF_DOMAIN, &cr)
+	rec, err := client.CreateRecord(common.CF_DOMAIN, &cr)
 
 	if err != nil {
 		log.Println("Could not create record? ", err)
@@ -252,7 +243,7 @@ func addToSubdomain(client *cloudflare.Client, record cloudflare.Record, subdoma
 	// Note for some reason CloudFlare seems to ignore the TTL here.
 	ur := cloudflare.UpdateRecord{Type: "A", Name: subdomain, Content: rec.Value, Ttl: "360", ServiceMode: "1"}
 
-	err = client.UpdateRecord(CF_DOMAIN, rec.Id, &ur)
+	err = client.UpdateRecord(common.CF_DOMAIN, rec.Id, &ur)
 
 	if err != nil {
 		log.Println("Could not update record? ", err)
