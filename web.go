@@ -3,16 +3,17 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
 	//"io/ioutil"
 	"strings"
-	//"time"
+	"time"
 
-	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/cloudflare"
 	"github.com/getlantern/flashlight/client"
+	"github.com/getlantern/peerscanner/common"
 )
 
 type Reg struct {
@@ -35,17 +36,17 @@ func register(w http.ResponseWriter, request *http.Request) {
 		err = callbackToPeer(reg.Ip)
 		if err == nil {
 			go func() {
-				if (reg.Ip == "23.243.192.92" || 
+				if reg.Ip == "23.243.192.92" ||
 					reg.Ip == "66.69.242.177" ||
 					reg.Ip == "83.45.165.48" ||
-					reg.Ip == "107.201.128.213") {
-				    log.Println("Registering peer: ", reg.Ip)	
-				    registerPeer(reg)
+					reg.Ip == "107.201.128.213" {
+					log.Println("Registering peer: ", reg.Ip)
+					registerPeer(reg)
 				}
 			}()
 		} else {
 			// Note this may not work across platforms, but the intent
-			// is to tell the client if the connection was flat out 
+			// is to tell the client if the connection was flat out
 			// refused as opposed to timed out in order to allow them
 			// to configure their router if possible.
 			if strings.Contains(err.Error(), "connection refused") {
@@ -109,6 +110,21 @@ func removeFromDns(reg *Reg) {
 }
 
 func callbackToPeer(upstreamHost string) error {
+
+	// First just try a plain TCP connection. This is useful because the underlying
+	// TCP-level error is consumed in the flashlight layer, and we need that
+	// to be accessible on the client side in the logic for deciding whether
+	// or not to display the port mapping message.
+	conn, err1 := net.DialTimeout("tcp", upstreamHost+":443", 12000*time.Millisecond)
+	if err1 != nil {
+		log.Printf("Direct TCP connection failed for IP %s with error %s", upstreamHost, err1)
+		return err1
+	}
+	conn.Close()
+
+	// For now just request again if the above succeeded, as we don't get enough
+	// information in the flashlight-level error to determine if the connection
+	// was refused, timed-out, or what.
 	client := clientFor(upstreamHost)
 
 	resp, err := client.Head("http://www.google.com/humans.txt")
@@ -127,10 +143,10 @@ func clientFor(upstreamHost string) *http.Client {
 		Host: upstreamHost,
 		Port: 443,
 		// We use a higher timeout on this initial check
-		// because we're just verifying some form of 
+		// because we're just verifying some form of
 		// connectivity. We vet peers using a more aggressive
 		// check later.
-		DialTimeoutMillis: 12000,
+		DialTimeoutMillis:  12000,
 		InsecureSkipVerify: true,
 	}
 	//masquerade := &client.Masquerade{common.MASQUERADE_AS, common.ROOT_CA}
