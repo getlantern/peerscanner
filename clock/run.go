@@ -87,7 +87,8 @@ func loopThroughRecords(client *cloudflare.Client) {
 	}
 
 	log.Printf("HOSTS IN PEERS: %v", len(peers))
-	log.Printf("HOSTS IN ROUNDROBIN: %v", len(mixedrr))
+	log.Printf("HOSTS IN FALLBACKS: %v", len(fallbacksrr))
+	log.Printf("HOSTS IN MIXED: %v", len(mixedrr))
 
 	roundrobins := make(map[string][]cloudflare.Record)
 	roundrobins[common.PEERS] = peersrr
@@ -98,7 +99,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	//removeAllPeers(client, peers)
 
-	testGroup(client, peers, 1, roundrobins, common.PEERS)
+	testGroup(client, peers, 1, roundrobins, common.PEERS, false)
 
 
 	// Now check to make sure all the servers are working as well. The danger
@@ -109,7 +110,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// this into account and should only kill servers if their failure rates
 	// are much higher than the others and likely leaving a reasonable number
 	// of servers in the mix no matter what.
-	testGroup(client, servers, 6, roundrobins, common.FALLBACKS)
+	testGroup(client, servers, 10, roundrobins, common.FALLBACKS, true)
 
 	//close(complete)
 
@@ -121,7 +122,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 // they'll be added. If they don't, depending on the specified number of attempts signifying a failure, 
 // they'll be removed.
 func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int, 
-	rrs map[string][]cloudflare.Record, group string) {
+	rrs map[string][]cloudflare.Record, group string, addtomixed bool) {
 	successes := make(chan cloudflare.Record)
 	failures := make(chan cloudflare.Record)
 
@@ -142,8 +143,10 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 				responses++
 
 				addToRoundRobin(client, r, rrs[group], group)
-				// Always add to the general roundrobin for now.
-				addToRoundRobin(client, r, rrs[common.ROUNDROBIN], common.ROUNDROBIN)
+
+				if addtomixed {
+					addToRoundRobin(client, r, rrs[common.ROUNDROBIN], common.ROUNDROBIN)
+				}
 				if responses == len(rr) {
 					break OuterLoop
 				}
