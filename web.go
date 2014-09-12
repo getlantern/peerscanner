@@ -36,13 +36,15 @@ func register(w http.ResponseWriter, request *http.Request) {
 		err = callbackToPeer(reg.Ip)
 		if err == nil {
 			go func() {
+				/*
 				if reg.Ip == "23.243.192.92" ||
 					reg.Ip == "66.69.242.177" ||
 					reg.Ip == "83.45.165.48" ||
-					reg.Ip == "107.201.128.213" {
-					log.Println("Registering peer: ", reg.Ip)
-					registerPeer(reg)
+					reg.Ip == "107.201.128.213" {	
 				}
+				*/
+				log.Println("Registering peer: ", reg.Ip)
+				registerPeer(reg)
 			}()
 		} else {
 			// Note this may not work across platforms, but the intent
