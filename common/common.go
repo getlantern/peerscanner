@@ -103,8 +103,9 @@ func (util *CloudFlareUtil) getAllRecordsByIndex(index int, response *cloudflare
 	if records.Response.Recs.HasMore {
 		//log.Println("Adding additional records")
 		return util.getAllRecordsByIndex(response.Response.Recs.Count, response)
-	} else {
-		//log.Println("Not loading additional records. Loaded: ", records.Response.Recs.Count)
-		return response, nil
-	}
+	} 
+
+	log.Println("Setting total cached records")
+	util.Cached = response
+	return response, nil
 }
