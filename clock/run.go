@@ -67,22 +67,22 @@ func loopThroughRecords(client *cloudflare.Client) {
 		// peer GUID. While it's possible something else could have a subdomain
 		// this long, it's unlikely.
 		if isPeer(record) {
-			log.Println("PEER: ", record.Value)
+			//log.Println("PEER: ", record.Value)
 			peers = append(peers, record)
 		} else if strings.HasPrefix(record.Name, "fl-") {
-			log.Println("SERVER: ", record.Name, record.Value)
+			//log.Println("SERVER: ", record.Name, record.Value)
 			servers = append(servers, record)
 		} else if record.Name == common.ROUNDROBIN {
-			log.Println("IN ROUNDROBIN: ", record.Name, record.Value)
+			//log.Println("IN ROUNDROBIN: ", record.Name, record.Value)
 			mixedrr = append(mixedrr, record)
 		} else if record.Name == common.PEERS {
-			log.Println("IN PEERS ROUNDROBIN: ", record.Name, record.Value)
+			//log.Println("IN PEERS ROUNDROBIN: ", record.Name, record.Value)
 			peersrr = append(peersrr, record)
 		} else if record.Name == common.FALLBACKS {
-			log.Println("IN FALLBACK ROUNDROBIN: ", record.Name, record.Value)
+			//log.Println("IN FALLBACK ROUNDROBIN: ", record.Name, record.Value)
 			fallbacksrr = append(fallbacksrr, record)
 		} else {
-			log.Println("UNKNOWN ENTRY: ", record.Name, record.Value)
+			//log.Println("UNKNOWN ENTRY: ", record.Name, record.Value)
 		}
 	}
 
