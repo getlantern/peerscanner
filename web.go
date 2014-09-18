@@ -43,7 +43,7 @@ func register(w http.ResponseWriter, request *http.Request) {
 					reg.Ip == "107.201.128.213" {	
 				}
 				*/
-				log.Println("Registering peer: ", reg.Ip)
+				//log.Println("Registering peer: ", reg.Ip)
 				registerPeer(reg)
 			}()
 		} else {
@@ -119,7 +119,7 @@ func callbackToPeer(upstreamHost string) error {
 	// or not to display the port mapping message.
 	conn, err1 := net.DialTimeout("tcp", upstreamHost+":443", 12000*time.Millisecond)
 	if err1 != nil {
-		log.Printf("Direct TCP connection failed for IP %s with error %s", upstreamHost, err1)
+		//log.Printf("Direct TCP connection failed for IP %s with error %s", upstreamHost, err1)
 		return err1
 	}
 	conn.Close()
@@ -172,7 +172,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 		return nil, err
 	}
 
-	log.Println("Successfully created record for: ", rec.FullName, rec.Id)
+	//log.Println("Successfully created record for: ", rec.FullName, rec.Id)
 
 	// Note for some reason CloudFlare seems to ignore the TTL here.
 	ur := cloudflare.UpdateRecord{Type: "A", Name: reg.Name, Content: reg.Ip, Ttl: "360", ServiceMode: "1"}
@@ -184,7 +184,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 		return nil, err
 	}
 
-	log.Println("Successfully updated record to use CloudFlare service mode")
+	//log.Println("Successfully updated record to use CloudFlare service mode")
 	return rec, err
 }
 

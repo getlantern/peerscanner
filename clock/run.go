@@ -143,7 +143,7 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 		for {
 			select {
 			case r := <-successes:
-				log.Printf("%s was successful\n", r.Value)
+				//log.Printf("%s was successful\n", r.Value)
 				responses = append(responses, r)
 
 				addToRoundRobin(client, r, rrs[group], group)
@@ -156,7 +156,7 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 					break OuterLoop
 				}
 			case r := <-failures:
-				log.Printf("%s failed\n", r.Value)
+				//log.Printf("%s failed\n", r.Value)
 				responses = append(responses, r)
 				// TODO: Call these in a go routine?
 				removeFromRoundRobin(client, r, rrs[group])
@@ -222,7 +222,7 @@ func addToRoundRobin(client *cloudflare.Client, r cloudflare.Record, rr []cloudf
 func inRoundRobin(r cloudflare.Record, rr []cloudflare.Record) bool {
 	for _, rec := range rr {
 		if rec.Value == r.Value {
-			log.Println("Server is already in round robin: ", r.Value)
+			//log.Println("Server is already in round robin: ", r.Value)
 			return true
 		}
 	}
@@ -279,8 +279,6 @@ func addToSubdomain(client *cloudflare.Client, record cloudflare.Record, subdoma
 		return
 	}
 
-	log.Println("Successfully created record for: ", rec.FullName, rec.Value)
-
 	// Note for some reason CloudFlare seems to ignore the TTL here.
 	ur := cloudflare.UpdateRecord{Type: "A", Name: subdomain, Content: rec.Value, Ttl: "360", ServiceMode: "1"}
 
@@ -288,8 +286,6 @@ func addToSubdomain(client *cloudflare.Client, record cloudflare.Record, subdoma
 
 	if err != nil {
 		log.Println("Could not update record? ", err)
-	} else {
-		log.Println("Successfully updated record for ", record.Value)
 	}
 }
 
@@ -315,7 +311,7 @@ func runTest(cf *cloudflare.Client, rec cloudflare.Record) bool {
 
 	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
 	resp, err := httpClient.Do(req)
-	log.Println("Finished http call for ", rec.Value)
+	//log.Println("Finished http call for ", rec.Value)
 	if err != nil {
 		fmt.Errorf("HTTP Error: %s", resp)
 		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
@@ -328,7 +324,7 @@ func runTest(cf *cloudflare.Client, rec cloudflare.Record) bool {
 			log.Println("Error reading body for peer: ", rec.Value)
 			return false
 		} else {
-			log.Printf("RESPONSE FOR PEER: %s, %s\n", rec.Value, body)
+			//log.Printf("RESPONSE FOR PEER: %s, %s\n", rec.Value, body)
 			return true
 		}
 	}
