@@ -181,13 +181,13 @@ func clientFor(upstreamHost string) *http.Client {
 	return httpClient
 }
 
-func registerPeer(reg *Reg) (*cloudflare.Record, error) {
+func registerPeer(reg *Reg) {
 	if cf.Cached != nil {
 		recs := cf.Cached.Response.Recs.Records
 		for _, record := range recs {
 			if record.Name == reg.Name {
 				log.Println("Already registered...returning")
-				return
+				return 
 			}
 		}
 	}
@@ -196,7 +196,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 
 	if err != nil {
 		log.Println("Could not create record? ", err)
-		return nil, err
+		return
 	}
 
 	//log.Println("Successfully created record for: ", rec.FullName, rec.Id)
@@ -208,11 +208,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 
 	if err != nil {
 		log.Println("Could not update record? ", err)
-		return nil, err
 	}
-
-	//log.Println("Successfully updated record to use CloudFlare service mode")
-	return rec, err
 }
 
 func requestToReg(r *http.Request) (*Reg, error) {
