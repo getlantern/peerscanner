@@ -33,16 +33,18 @@ func main() {
 		return
 	}
 
-	// We periodically grab all the records in CloudFlare to avoid making constant
-	// calls to add or remove records that are already either present or absent.
-	cf.GetAllRecords()
-	for {
-		select {
-		case <-time.After(20 * time.Second):
-			log.Println("Refreshing cf records")
-			cf.GetAllRecords()
+	go func() {
+		// We periodically grab all the records in CloudFlare to avoid making constant
+		// calls to add or remove records that are already either present or absent.
+		cf.GetAllRecords()
+		for {
+			select {
+			case <-time.After(20 * time.Second):
+				log.Println("Refreshing cf records")
+				cf.GetAllRecords()
+			}
 		}
-	}
+	}()
 	http.HandleFunc("/register", register)
 	http.HandleFunc("/unregister", unregister)
 	http.ListenAndServe(getPort(), nil)
