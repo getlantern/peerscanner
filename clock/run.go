@@ -15,26 +15,24 @@ import (
 
 func main() {
 	log.Println("Starting CloudFlare Flashlight Tests...")
-	client, err := cloudflare.NewClient("", "")
-	if err != nil {
-		log.Println("Could not create CloudFlare client:", err)
-		return
-	}
+
+	util := common.NewCloudFlareUtil()
 
 	for {
 		log.Println("Starting pass!")
-		loopThroughRecords(client)
+		loopThroughRecords(util)
 	}
 
 }
 
-func loopThroughRecords(client *cloudflare.Client) {
-	records, err := common.GetAllRecords(client)
+func loopThroughRecords(util *common.CloudFlareUtil) {
+	records, err := util.GetAllRecords()
 	if err != nil {
 		log.Println("Error retrieving record!", err)
 		return
 	}
-	log.Println("Loaded all records...", records.Response.Recs.Count)
+
+	//log.Println("Loaded all records...", records.Response.Recs.Count)
 
 	// Sleep here instead to make sure records have propagated to CloudFlare internally.
 	//log.Println("Sleeping!")
@@ -99,7 +97,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 
 	//removeAllPeers(client, peers)
 
-	testGroup(client, peers, 1, roundrobins, common.PEERS, false)
+	testGroup(util, peers, 1, roundrobins, common.PEERS, false)
 
 
 	// Now check to make sure all the servers are working as well. The danger
@@ -110,7 +108,7 @@ func loopThroughRecords(client *cloudflare.Client) {
 	// this into account and should only kill servers if their failure rates
 	// are much higher than the others and likely leaving a reasonable number
 	// of servers in the mix no matter what.
-	testGroup(client, servers, 10, roundrobins, common.FALLBACKS, true)
+	testGroup(util, servers, 10, roundrobins, common.FALLBACKS, true)
 
 	//close(complete)
 
@@ -121,8 +119,10 @@ func loopThroughRecords(client *cloudflare.Client) {
 // not be a roundrobin group but rather a group of candidates servers, whether peers or not. If they work,
 // they'll be added. If they don't, depending on the specified number of attempts signifying a failure, 
 // they'll be removed.
-func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int, 
+func testGroup(util *common.CloudFlareUtil, rr []cloudflare.Record, attempts int, 
 	rrs map[string][]cloudflare.Record, group string, addtomixed bool) {
+
+	client := util.Client
 	successes := make(chan cloudflare.Record)
 	failures := make(chan cloudflare.Record)
 
@@ -166,7 +166,7 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 				// Otherwise, we might restart the server or something so it will
 				// work on a future pass.
 				if isPeer(r) {
-					client.DestroyRecord(r.Domain, r.Id)
+					util.Client.DestroyRecord(r.Domain, r.Id)
 				}
 				if len(responses) == len(rr) {
 					log.Printf("Read all %v responses", len(rr))

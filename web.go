@@ -1,3 +1,6 @@
+// main simply contains the primary web serving code that allows peers to 
+// register and unregister as give mode peers running within the Lantern
+// network
 package main
 
 import (
@@ -22,6 +25,31 @@ type Reg struct {
 	Port int
 }
 
+var cf = common.NewCloudFlareUtil()
+
+func main() {
+	if cf == nil {
+		panic("Could not create CloudFlare client?")
+		return
+	}
+
+	// We periodically grab all the records in CloudFlare to avoid making constant
+	// calls to add or remove records that are already either present or absent.
+	cf.GetAllRecords()
+	for {
+		select {
+		case <-time.After(20 * time.Second):
+			log.Println("Refreshing cf records")
+			cf.GetAllRecords()
+		}
+	}
+	http.HandleFunc("/register", register)
+	http.HandleFunc("/unregister", unregister)
+	http.ListenAndServe(getPort(), nil)
+}
+
+// register is the entry point for peers registering themselves with the service.
+// If peers are successfully vetted, they'll be added to the DNS round robin.
 func register(w http.ResponseWriter, request *http.Request) {
 	reg, err := requestToReg(request)
 	if err != nil {
@@ -62,6 +90,7 @@ func register(w http.ResponseWriter, request *http.Request) {
 	}
 }
 
+// unregister is the HTTP endpoint for removing peers from DNS.
 func unregister(w http.ResponseWriter, r *http.Request) {
 	reg, err := requestToReg(r)
 	if err != nil {
@@ -72,12 +101,7 @@ func unregister(w http.ResponseWriter, r *http.Request) {
 }
 
 func removeFromDns(reg *Reg) {
-
-	client, err := cloudflare.NewClient("", "")
-	if err != nil {
-		log.Println("Could not create CloudFlare client:", err)
-		return
-	}
+	client := cf.Client
 
 	rec, err := client.RetrieveRecordByName(common.CF_DOMAIN, reg.Name)
 	if err != nil {
@@ -88,26 +112,26 @@ func removeFromDns(reg *Reg) {
 	// Make sure we destroy the record on CloudFlare if it
 	// didn't work.
 	log.Println("Destroying record for: ", reg.Name)
-	err = common.RemoveIpFromRoundRobin(client, rec.Value, common.ROUNDROBIN)
+	err = cf.RemoveIpFromRoundRobin(rec.Value, common.ROUNDROBIN)
 	if err != nil {
 		log.Println("Error deleting peer record from roundrobin! ", err)
 	} else {
-		log.Println("Removed DNS record from roundrobin for ", reg.Ip)
+		//log.Println("Removed DNS record from roundrobin for ", reg.Ip)
 	}
 
 	// Destroy it in the peers group as well as the general roundrobin
-	err = common.RemoveIpFromRoundRobin(client, rec.Value, common.PEERS)
+	err = cf.RemoveIpFromRoundRobin(rec.Value, common.PEERS)
 	if err != nil {
 		log.Println("Error deleting peer record from roundrobin! ", err)
 	} else {
-		log.Println("Removed DNS record from roundrobin for ", reg.Ip)
+		//log.Println("Removed DNS record from roundrobin for ", reg.Ip)
 	}
 
 	err = client.DestroyRecord(common.CF_DOMAIN, rec.Id)
 	if err != nil {
 		log.Println("Error deleting peer record! ", err)
 	} else {
-		log.Println("Removed DNS record for ", reg.Ip)
+		//log.Println("Removed DNS record for ", reg.Ip)
 	}
 }
 
@@ -158,14 +182,17 @@ func clientFor(upstreamHost string) *http.Client {
 }
 
 func registerPeer(reg *Reg) (*cloudflare.Record, error) {
-	client, err := cloudflare.NewClient("", "")
-	if err != nil {
-		log.Println("Could not create CloudFlare client:", err)
-		return nil, err
+	if cf.Cached != nil {
+		recs := cf.Cached.Response.Recs.Records
+		for _, record := range recs {
+			if record.Name == reg.Name {
+				log.Println("Already registered...returning")
+				return
+			}
+		}
 	}
-
 	cr := cloudflare.CreateRecord{Type: "A", Name: reg.Name, Content: reg.Ip}
-	rec, err := client.CreateRecord(common.CF_DOMAIN, &cr)
+	rec, err := cf.Client.CreateRecord(common.CF_DOMAIN, &cr)
 
 	if err != nil {
 		log.Println("Could not create record? ", err)
@@ -177,7 +204,7 @@ func registerPeer(reg *Reg) (*cloudflare.Record, error) {
 	// Note for some reason CloudFlare seems to ignore the TTL here.
 	ur := cloudflare.UpdateRecord{Type: "A", Name: reg.Name, Content: reg.Ip, Ttl: "360", ServiceMode: "1"}
 
-	err = client.UpdateRecord(common.CF_DOMAIN, rec.Id, &ur)
+	err = cf.Client.UpdateRecord(common.CF_DOMAIN, rec.Id, &ur)
 
 	if err != nil {
 		log.Println("Could not update record? ", err)
@@ -234,12 +261,6 @@ func clientIpFor(req *http.Request) string {
 	} else {
 		return req.FormValue("ip")
 	}
-}
-
-func main() {
-	http.HandleFunc("/register", register)
-	http.HandleFunc("/unregister", unregister)
-	http.ListenAndServe(getPort(), nil)
 }
 
 // Get the Port from the environment so we can run on Heroku

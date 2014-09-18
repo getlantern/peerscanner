@@ -14,34 +14,43 @@ const (
 	FALLBACKS     = "fallbacks"
 )
 
-func RemoveIpFromRoundRobin(client *cloudflare.Client, ip string, subdomain string) error {
+type CloudFlareUtil struct {
+	Client *cloudflare.Client
+	Cached *cloudflare.RecordsResponse
+}
+
+func NewCloudFlareUtil() *CloudFlareUtil {
 	client, err := cloudflare.NewClient("", "")
 	if err != nil {
 		log.Println("Could not create CloudFlare client:", err)
-		return err
+		return nil
 	}
+	cf := CloudFlareUtil{client, nil}
+	return &cf
+}
 
-	roundrobin, err := GetRoundRobinRecords(client, subdomain)
+func (util *CloudFlareUtil) RemoveIpFromRoundRobin(ip string, subdomain string) error {
+	roundrobin, err := util.GetRoundRobinRecords(subdomain)
 	if err != nil {
 		return err
 	}
-	return RemoveIpFromRoundRobinRecords(client, ip, roundrobin)
+	return util.RemoveIpFromRoundRobinRecords(ip, roundrobin)
 
 }
 
-func RemoveIpFromRoundRobinRecords(client *cloudflare.Client, ip string, roundrobin []cloudflare.Record) error {
+func (util *CloudFlareUtil) RemoveIpFromRoundRobinRecords(ip string, roundrobin []cloudflare.Record) error {
 	for _, rec := range roundrobin {
 		if rec.Value == ip {
 			log.Println("Destroying record ", rec.Value)
-			err := client.DestroyRecord(rec.Domain, rec.Id)
+			err := util.Client.DestroyRecord(rec.Domain, rec.Id)
 			return err
 		}
 	}
 	return nil
 }
 
-func GetRoundRobinRecords(client *cloudflare.Client, subdomain string) ([]cloudflare.Record, error) {
-	records, err := GetAllRecords(client)
+func (util *CloudFlareUtil) GetRoundRobinRecords(subdomain string) ([]cloudflare.Record, error) {
+	records, err := util.GetAllRecords()
 
 	if err != nil {
 		log.Println("Could not get records:", err)
@@ -53,50 +62,48 @@ func GetRoundRobinRecords(client *cloudflare.Client, subdomain string) ([]cloudf
 	roundrobin := make([]cloudflare.Record, 0)
 	for _, record := range recs {
 		if record.Name == subdomain {
-			log.Println("IN ROUNDROBIN IP: ", record.Name, record.Value)
+			//log.Println("IN ROUNDROBIN IP: ", record.Name, record.Value)
 			roundrobin = append(roundrobin, record)
 		} else {
-			log.Println("NON ROUNDROBIN IP: ", record.Name, record.Value)
+			//log.Println("NON ROUNDROBIN IP: ", record.Name, record.Value)
 		}
 	}
 	return roundrobin, nil
 }
 
-func GetAllRecords(client *cloudflare.Client) (*cloudflare.RecordsResponse, error) {
-	records, err := client.LoadAll(CF_DOMAIN)
+func (util *CloudFlareUtil) GetAllRecords() (*cloudflare.RecordsResponse, error) {
+	records, err := util.Client.LoadAll(CF_DOMAIN)
 	if err != nil {
 		log.Println("Error retrieving record!", err)
 		return nil, err
 	}
-
-	log.Println("Loaded original records...", records.Response.Recs.Count)
-
-	//recs := records.Response.Recs.Records
+	//log.Println("Loaded original records...", records.Response.Recs.Count)
 
 	if records.Response.Recs.HasMore {
-		return getAllRecordsByIndex(client, records.Response.Recs.Count, records)
+		return util.getAllRecordsByIndex(records.Response.Recs.Count, records)
 	}
+
+	util.Cached = records
 	return records, nil
 }
 
-func getAllRecordsByIndex(client *cloudflare.Client, index int, response *cloudflare.RecordsResponse) (*cloudflare.RecordsResponse, error) {
-	records, err := client.LoadAllAtIndex(CF_DOMAIN, index)
+func (util *CloudFlareUtil) getAllRecordsByIndex(index int, response *cloudflare.RecordsResponse) (*cloudflare.RecordsResponse, error) {
+	records, err := util.Client.LoadAllAtIndex(CF_DOMAIN, index)
 	if err != nil {
 		log.Println("Error retrieving record!", err)
 		return nil, err
 	}
 
-	log.Println("Loaded original records...", records.Response.Recs.Count)
+	//log.Println("Loaded original records...", records.Response.Recs.Count)
 
 	response.Response.Recs.Records = append(response.Response.Recs.Records, records.Response.Recs.Records...)
-
 	response.Response.Recs.Count = response.Response.Recs.Count + records.Response.Recs.Count
 
 	if records.Response.Recs.HasMore {
-		log.Println("Adding additional records")
-		return getAllRecordsByIndex(client, response.Response.Recs.Count, response)
+		//log.Println("Adding additional records")
+		return util.getAllRecordsByIndex(response.Response.Recs.Count, response)
 	} else {
-		log.Println("Not loading additional records. Loaded: ", records.Response.Recs.Count)
+		//log.Println("Not loading additional records. Loaded: ", records.Response.Recs.Count)
 		return response, nil
 	}
 }
