@@ -37,8 +37,8 @@ func loopThroughRecords(client *cloudflare.Client) {
 	log.Println("Loaded all records...", records.Response.Recs.Count)
 
 	// Sleep here instead to make sure records have propagated to CloudFlare internally.
-	log.Println("Sleeping!")
-	time.Sleep(10 * time.Second)
+	//log.Println("Sleeping!")
+	//time.Sleep(10 * time.Second)
 
 	recs := records.Response.Recs.Records
 
@@ -134,6 +134,8 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 		log.Println("No records in group")
 		return
 	}
+
+	timeout := time.After(20 * time.Second)
 	responses := 0
 	OuterLoop:
 		for {
@@ -148,11 +150,13 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 					addToRoundRobin(client, r, rrs[common.ROUNDROBIN], common.ROUNDROBIN)
 				}
 				if responses == len(rr) {
+					log.Printf("Read all %v responses", len(rr))
 					break OuterLoop
 				}
 			case r := <-failures:
 				log.Printf("%s failed\n", r.Value)
 				responses++
+				// TODO: Call these in a go routine?
 				removeFromRoundRobin(client, r, rrs[group])
 				removeFromRoundRobin(client, r, rrs[common.ROUNDROBIN])
 
@@ -163,10 +167,11 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 					client.DestroyRecord(r.Domain, r.Id)
 				}
 				if responses == len(rr) {
+					log.Printf("Read all %v responses", len(rr))
 					break OuterLoop
 				}
-			case <-time.After(20 * time.Second):
-				fmt.Printf(".")
+			case <-timeout:
+				log.Printf("Timed out! Read %v out of %v records", responses, len(rr))
 				// TODO: We should also remove any that didn't explictly succeed.
 				break OuterLoop
 			}
