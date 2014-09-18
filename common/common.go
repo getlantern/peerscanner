@@ -83,6 +83,7 @@ func (util *CloudFlareUtil) GetAllRecords() (*cloudflare.RecordsResponse, error)
 		return util.getAllRecordsByIndex(records.Response.Recs.Count, records)
 	}
 
+	log.Println("Setting cached records")
 	util.Cached = records
 	return records, nil
 }

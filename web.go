@@ -192,6 +192,8 @@ func registerPeer(reg *Reg) {
 				return 
 			}
 		}
+	} else {
+		log.Println("No cached records")
 	}
 	cr := cloudflare.CreateRecord{Type: "A", Name: reg.Name, Content: reg.Ip}
 	rec, err := cf.Client.CreateRecord(common.CF_DOMAIN, &cr)
