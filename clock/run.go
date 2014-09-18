@@ -184,6 +184,7 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 
 				log.Printf("Deleting %v unresponsive records", len(all))
 				for _, val := range all {
+					log.Printf("Deleting %v unresponsive record", val)
 					removeFromRoundRobin(client, val, rrs[group])
 					removeFromRoundRobin(client, val, rrs[common.ROUNDROBIN])
 
