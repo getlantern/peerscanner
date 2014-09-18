@@ -135,27 +135,29 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 		return
 	}
 
-	timeout := time.After(20 * time.Second)
-	responses := 0
+	responses := make([]cloudflare.Record, 0)
+
+	timeout := time.After(10 * time.Second)
+	//responses := 0
 	OuterLoop:
 		for {
 			select {
 			case r := <-successes:
 				log.Printf("%s was successful\n", r.Value)
-				responses++
+				responses = append(responses, r)
 
 				addToRoundRobin(client, r, rrs[group], group)
 
 				if addtomixed {
 					addToRoundRobin(client, r, rrs[common.ROUNDROBIN], common.ROUNDROBIN)
 				}
-				if responses == len(rr) {
+				if len(responses) == len(rr) {
 					log.Printf("Read all %v responses", len(rr))
 					break OuterLoop
 				}
 			case r := <-failures:
 				log.Printf("%s failed\n", r.Value)
-				responses++
+				responses = append(responses, r)
 				// TODO: Call these in a go routine?
 				removeFromRoundRobin(client, r, rrs[group])
 				removeFromRoundRobin(client, r, rrs[common.ROUNDROBIN])
@@ -166,16 +168,46 @@ func testGroup(client *cloudflare.Client, rr []cloudflare.Record, attempts int,
 				if isPeer(r) {
 					client.DestroyRecord(r.Domain, r.Id)
 				}
-				if responses == len(rr) {
+				if len(responses) == len(rr) {
 					log.Printf("Read all %v responses", len(rr))
 					break OuterLoop
 				}
 			case <-timeout:
-				log.Printf("Timed out! Read %v out of %v records", responses, len(rr))
+				log.Printf("Timed out! Read %v out of %v records", len(responses), len(rr))
+				
+				all := recordsToMap(rr)
+				allResponses := recordsToMap(responses)
+
+				for _, val := range allResponses {
+					delete(all, val.FullName)
+				}
+
+				log.Printf("Deleting %v unresponsive records", len(all))
+				for _, val := range all {
+					removeFromRoundRobin(client, val, rrs[group])
+					removeFromRoundRobin(client, val, rrs[common.ROUNDROBIN])
+
+					// Only actually destroy the original record if it's for a peer.
+					// Otherwise, we might restart the server or something so it will
+					// work on a future pass.
+					if isPeer(val) {
+						client.DestroyRecord(val.Domain, val.Id)
+					}
+				}
+
+
 				// TODO: We should also remove any that didn't explictly succeed.
 				break OuterLoop
 			}
 		}
+}
+
+func recordsToMap(rr []cloudflare.Record) map[string]cloudflare.Record {
+	mapped := make(map[string]cloudflare.Record)
+	for _, r := range rr {
+		mapped[r.FullName] = r
+	}
+	return mapped
 }
 
 func addToRoundRobin(client *cloudflare.Client, r cloudflare.Record, rr []cloudflare.Record, group string) {
