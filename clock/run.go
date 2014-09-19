@@ -103,12 +103,11 @@ func testHosts() {
 
 	var wg sync.WaitGroup
 	wg.Add(len(hosts))
-
 	for _, host := range hosts {
 		go host.test(wg)
 	}
-
 	wg.Wait()
+
 	log.Println("Pass complete")
 }
 
@@ -117,12 +116,13 @@ func (g *group) addExisting(r cloudflare.Record) {
 	g.existing[r.Value] = r
 }
 
-// register registers a host with this group
+// register registers a host with this group in CloudFlare if it isn't already
+// registered
 func (g *group) register(h *host) {
 	// Check to see if the host is already in the round robin before making a call
 	// to the CloudFlare API.
-	_, exists := g.existing[h.record.Value]
-	if !exists {
+	_, alreadyRegistered := g.existing[h.record.Value]
+	if !alreadyRegistered {
 		log.Println("ADDING IP TO ROUNDROBIN!!: ", h.record.Value)
 		cr := cloudflare.CreateRecord{Type: "A", Name: g.subdomain, Content: h.record.Value}
 		rec, err := cfClient.CreateRecord(common.CF_DOMAIN, &cr)
@@ -143,6 +143,7 @@ func (g *group) register(h *host) {
 	}
 }
 
+// unregister unregisters a host from this group in CloudFlare
 func (g *group) unregister(h *host) {
 	existing, exists := g.existing[h.record.Value]
 	if exists {
