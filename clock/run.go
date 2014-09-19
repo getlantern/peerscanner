@@ -105,14 +105,6 @@ func testHosts() {
 	wg.Add(len(hosts))
 
 	for _, host := range hosts {
-		// Note - when checking servers,  the danger
-		// here is that the server start failing because they're overloaded,
-		// we start a cascading failure effect where we kill the most overloaded
-		// servers and add their load to the remaining ones, thereby making it
-		// much more likely those will fail as well. Our approach should take
-		// this into account and should only kill servers if their failure rates
-		// are much higher than the others and likely leaving a reasonable number
-		// of servers in the mix no matter what.
 		go host.test(wg)
 	}
 
@@ -176,6 +168,15 @@ func (h *host) test(wg sync.WaitGroup) {
 	wg.Done()
 }
 
+// isAbleToProxy checks whether we're able to proxy through this host, which
+// might involve multiple checks. Note - when checking servers,  the danger
+// here is that the server start failing because they're overloaded,
+// we start a cascading failure effect where we kill the most overloaded
+// servers and add their load to the remaining ones, thereby making it
+// much more likely those will fail as well. Our approach should take
+// this into account and should only kill servers if their failure rates
+// are much higher than the others and likely leaving a reasonable number
+// of servers in the mix no matter what.
 func (h *host) isAbleToProxy() bool {
 	succeeded := make(chan bool)
 
