@@ -145,8 +145,8 @@ func (g *group) register(h *host) {
 
 // unregister unregisters a host from this group in CloudFlare
 func (g *group) unregister(h *host) {
-	existing, exists := g.existing[h.record.Value]
-	if exists {
+	existing, registered := g.existing[h.record.Value]
+	if registered {
 		log.Println("Deleting server from round robin: ", h.record.Value)
 
 		// Destroy the record in the roundrobin...
