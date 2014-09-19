@@ -61,8 +61,6 @@ func testHosts() {
 
 	log.Println("Total records loaded: ", len(recs))
 
-	hosts := make([]*host, 0)
-
 	// These are the groups of hosts across which we round-robin
 	var (
 		fallbacks  = &group{common.FALLBACKS, make(map[string]cloudflare.Record)}
@@ -77,6 +75,7 @@ func testHosts() {
 		peerGroups     = []*group{peers}
 	)
 
+	hosts := make([]*host, 0)
 	for _, record := range recs {
 		// We just check the length of the subdomain here, which is the unique
 		// peer GUID. While it's possible something else could have a subdomain
