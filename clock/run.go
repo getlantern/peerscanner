@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	cfClient *cloudflare.Client
+	util *common.CloudFlareUtil
 
 	testTimeout = 10 * time.Second
 )
@@ -35,13 +35,8 @@ type host struct {
 
 func main() {
 	log.Println("Starting CloudFlare Flashlight Tests...")
-	var err error
-	cfClient, err = cloudflare.NewClient("", "")
-	if err != nil {
-		log.Println("Could not create CloudFlare client:", err)
-		return
-	}
 
+	util = common.NewCloudFlareUtil()
 	for {
 		testHosts()
 	}
@@ -50,12 +45,13 @@ func main() {
 func testHosts() {
 	log.Println("Starting pass!")
 
-	records, err := common.GetAllRecords(cfClient)
+	records, err := util.GetAllRecords()
 	if err != nil {
 		log.Println("Error retrieving record!", err)
 		return
 	}
-	log.Println("Loaded all records...", records.Response.Recs.Count)
+
+	//log.Println("Loaded all records...", records.Response.Recs.Count)
 
 	recs := records.Response.Recs.Records
 
@@ -103,7 +99,7 @@ func testHosts() {
 	var wg sync.WaitGroup
 	wg.Add(len(hosts))
 	for _, host := range hosts {
-		go host.test(wg)
+		go host.test(&wg)
 	}
 	wg.Wait()
 
@@ -122,22 +118,22 @@ func (g *group) register(h *host) {
 	// to the CloudFlare API.
 	_, alreadyRegistered := g.existing[h.record.Value]
 	if !alreadyRegistered {
-		log.Println("ADDING IP TO ROUNDROBIN!!: ", h.record.Value)
+		log.Printf("Registering to %s: %s", g.subdomain, h.record.Value)
 		cr := cloudflare.CreateRecord{Type: "A", Name: g.subdomain, Content: h.record.Value}
-		rec, err := cfClient.CreateRecord(common.CF_DOMAIN, &cr)
+		rec, err := util.Client.CreateRecord(common.CF_DOMAIN, &cr)
 
 		if err != nil {
-			log.Println("Could not create record? ", err)
+			log.Printf("Could not register? : %s", err)
 			return
 		}
 
 		// Note for some reason CloudFlare seems to ignore the TTL here.
 		ur := cloudflare.UpdateRecord{Type: "A", Name: g.subdomain, Content: rec.Value, Ttl: "360", ServiceMode: "1"}
 
-		err = cfClient.UpdateRecord(common.CF_DOMAIN, rec.Id, &ur)
+		err = util.Client.UpdateRecord(common.CF_DOMAIN, rec.Id, &ur)
 
 		if err != nil {
-			log.Println("Could not update record? ", err)
+			log.Printf("Could not register? : %s", err)
 		}
 	}
 }
@@ -146,16 +142,16 @@ func (g *group) register(h *host) {
 func (g *group) unregister(h *host) {
 	existing, registered := g.existing[h.record.Value]
 	if registered {
-		log.Println("Deleting server from round robin: ", h.record.Value)
+		log.Printf("Unregistering from %s: %s", g.subdomain, h.record.Value)
 
 		// Destroy the record in the roundrobin...
-		cfClient.DestroyRecord(existing.Domain, existing.Id)
+		util.Client.DestroyRecord(existing.Domain, existing.Id)
 	}
 }
 
 // test tests to make sure that this host can proxy traffic and either adds or
 // removes it from CloudFlare DNS depending on the result.
-func (h *host) test(wg sync.WaitGroup) {
+func (h *host) test(wg *sync.WaitGroup) {
 	if h.isAbleToProxy() {
 		for _, group := range h.groups {
 			group.register(h)
@@ -178,23 +174,24 @@ func (h *host) test(wg sync.WaitGroup) {
 // are much higher than the others and likely leaving a reasonable number
 // of servers in the mix no matter what.
 func (h *host) isAbleToProxy() bool {
-	succeeded := make(chan bool)
-
-	go func() {
-		for i := 0; i < h.testAttempts; i++ {
-			if h.isAbleToProxyOnce() {
-				// If we get a single success we can exit the loop and consider it a success.
-				succeeded <- true
-				return
-			} else if i == (h.testAttempts - 1) {
-				// If we get consecutive failures up to our threshhold, consider it a failure.
-				succeeded <- false
-				return
-			}
+	for i := 0; i < h.testAttempts; i++ {
+		if h.isAbleToProxyOnce() {
+			// If we get a single success we can exit the loop and consider it a success.
+			return true
 		}
+	}
+	// If we get consecutive failures up to our threshhold, consider it a failure.
+	return false
+}
+
+// isAbleToProxyOnce attempts to proxy a reguest through the host
+func (h *host) isAbleToProxyOnce() bool {
+	succeeded := make(chan bool)
+	go func() {
+		succeeded <- h.doIsAbleToProxyOnce()
 	}()
 
-	// Only allow up to testTimeout time for the checking to finish
+	// Only allow up to testTimeout time for letting single request finish
 	select {
 	case success := <-succeeded:
 		return success
@@ -203,8 +200,7 @@ func (h *host) isAbleToProxy() bool {
 	}
 }
 
-// isAbleToProxyOnce attempts to proxy a reguest through the host
-func (h *host) isAbleToProxyOnce() bool {
+func (h *host) doIsAbleToProxyOnce() bool {
 	httpClient := clientFor(h.record.Name+".getiantem.org", common.MASQUERADE_AS, common.ROOT_CA)
 
 	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
