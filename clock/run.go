@@ -96,6 +96,9 @@ func testHosts() {
 		}
 	}
 
+	log.Printf("NUMBER OF PEERS: %d", len(peers.existing))
+	log.Printf("NUMBER OF FALLBACKS: %d", len(fallbacks.existing))
+
 	var wg sync.WaitGroup
 	wg.Add(len(hosts))
 	for _, host := range hosts {
