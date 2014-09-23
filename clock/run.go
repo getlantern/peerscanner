@@ -17,7 +17,7 @@ import (
 var (
 	util *common.CloudFlareUtil
 
-	testTimeout = 10 * time.Second
+	testTimeout = 6 * time.Second
 )
 
 // group represents a group of hosts (e.g. roundrobin, fallbacks, peers)
