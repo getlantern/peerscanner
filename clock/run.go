@@ -2,30 +2,49 @@ package main
 
 import (
 	"fmt"
+	"github.com/getlantern/cloudflare"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
-	"github.com/getlantern/cloudflare"
+	"sync"
 	"time"
 
-	"github.com/getlantern/peerscanner/common"
 	"github.com/getlantern/flashlight/client"
+	"github.com/getlantern/peerscanner/common"
 )
+
+var (
+	util *common.CloudFlareUtil
+
+	testTimeout = 6 * time.Second
+)
+
+// group represents a group of hosts (e.g. roundrobin, fallbacks, peers)
+type group struct {
+	subdomain string
+	existing  map[string]cloudflare.Record
+}
+
+// host represents a host entry in CloudFlare
+type host struct {
+	record       cloudflare.Record
+	testAttempts int      // how many times to try proxying through this host
+	groups       []*group // groups of which this host is a member
+}
 
 func main() {
 	log.Println("Starting CloudFlare Flashlight Tests...")
 
-	util := common.NewCloudFlareUtil()
-
+	util = common.NewCloudFlareUtil()
 	for {
-		log.Println("Starting pass!")
-		loopThroughRecords(util)
+		testHosts()
 	}
-
 }
 
-func loopThroughRecords(util *common.CloudFlareUtil) {
+func testHosts() {
+	log.Println("Starting pass!")
+
 	records, err := util.GetAllRecords()
 	if err != nil {
 		log.Println("Error retrieving record!", err)
@@ -34,210 +53,173 @@ func loopThroughRecords(util *common.CloudFlareUtil) {
 
 	//log.Println("Loaded all records...", records.Response.Recs.Count)
 
-	// Sleep here instead to make sure records have propagated to CloudFlare internally.
-	//log.Println("Sleeping!")
-	//time.Sleep(10 * time.Second)
-
 	recs := records.Response.Recs.Records
 
 	log.Println("Total records loaded: ", len(recs))
 
-	// Loop through everything to do some bookkeeping and to put
-	// records in their appropriate categories.
+	// These are the groups of hosts across which we round-robin
+	var (
+		fallbacks  = &group{common.FALLBACKS, make(map[string]cloudflare.Record)}
+		peers      = &group{common.PEERS, make(map[string]cloudflare.Record)}
+		roundRobin = &group{common.ROUNDROBIN, make(map[string]cloudflare.Record)}
+	)
 
-	// All peers.
-	peers := make([]cloudflare.Record, 0)
+	// Fallbacks are part of their own group plus the roundRobin group, peers
+	// are only in their own group
+	var (
+		fallbackGroups = []*group{fallbacks, roundRobin}
+		peerGroups     = []*group{peers}
+	)
 
-	// All servers
-	servers := make([]cloudflare.Record, 0)
-
-	// All entries in the general round robin.
-	mixedrr := make([]cloudflare.Record, 0)
-
-	// All entries in the fallback round robin.
-	fallbacksrr := make([]cloudflare.Record, 0)
-
-	// All entries in the peer round robin.
-	peersrr := make([]cloudflare.Record, 0)
-
+	hosts := make([]*host, 0)
 	for _, record := range recs {
 		// We just check the length of the subdomain here, which is the unique
 		// peer GUID. While it's possible something else could have a subdomain
 		// this long, it's unlikely.
 		if isPeer(record) {
 			//log.Println("PEER: ", record.Value)
-			peers = append(peers, record)
+			hosts = append(hosts, &host{record, 1, peerGroups})
 		} else if strings.HasPrefix(record.Name, "fl-") {
 			//log.Println("SERVER: ", record.Name, record.Value)
-			servers = append(servers, record)
+			hosts = append(hosts, &host{record, 10, fallbackGroups})
 		} else if record.Name == common.ROUNDROBIN {
 			//log.Println("IN ROUNDROBIN: ", record.Name, record.Value)
-			mixedrr = append(mixedrr, record)
+			roundRobin.addExisting(record)
 		} else if record.Name == common.PEERS {
 			//log.Println("IN PEERS ROUNDROBIN: ", record.Name, record.Value)
-			peersrr = append(peersrr, record)
+			peers.addExisting(record)
 		} else if record.Name == common.FALLBACKS {
 			//log.Println("IN FALLBACK ROUNDROBIN: ", record.Name, record.Value)
-			fallbacksrr = append(fallbacksrr, record)
+			fallbacks.addExisting(record)
 		} else {
 			//log.Println("UNKNOWN ENTRY: ", record.Name, record.Value)
 		}
 	}
 
-	log.Printf("HOSTS IN PEERS: %v", len(peers))
-	log.Printf("HOSTS IN FALLBACKS: %v", len(fallbacksrr))
-	log.Printf("HOSTS IN MIXED: %v", len(mixedrr))
-
-	roundrobins := make(map[string][]cloudflare.Record)
-	roundrobins[common.PEERS] = peersrr
-	roundrobins[common.FALLBACKS] = fallbacksrr
-	roundrobins[common.ROUNDROBIN] = mixedrr
-
-	//removeAllPeersFromRoundRobin(client, roundrobin)
-
-	//removeAllPeers(client, peers)
-
-	testGroup(util, peers, 1, roundrobins, common.PEERS, false)
-
-
-	// Now check to make sure all the servers are working as well. The danger
-	// here is that the server start failing because they're overloaded, 
-	// we start a cascading failure effect where we kill the most overloaded
-	// servers and add their load to the remaining ones, thereby making it
-	// much more likely those will fail as well. Our approach should take 
-	// this into account and should only kill servers if their failure rates
-	// are much higher than the others and likely leaving a reasonable number
-	// of servers in the mix no matter what.
-	testGroup(util, servers, 10, roundrobins, common.FALLBACKS, true)
-
-	//close(complete)
+	var wg sync.WaitGroup
+	wg.Add(len(hosts))
+	for _, host := range hosts {
+		go host.test(&wg)
+	}
+	wg.Wait()
 
 	log.Println("Pass complete")
 }
 
-// testGroup: Runs tests against a group of DNS records in CloudFlare to see if they work. The group should
-// not be a roundrobin group but rather a group of candidates servers, whether peers or not. If they work,
-// they'll be added. If they don't, depending on the specified number of attempts signifying a failure, 
-// they'll be removed.
-func testGroup(util *common.CloudFlareUtil, rr []cloudflare.Record, attempts int, 
-	rrs map[string][]cloudflare.Record, group string, addtomixed bool) {
-
-	client := util.Client
-	successes := make(chan cloudflare.Record)
-	failures := make(chan cloudflare.Record)
-
-	for _, r := range rr {
-		go testServer(client, r, successes, failures, attempts)
-	}
-
-	if len(rr) == 0 {
-		log.Println("No records in group")
-		return
-	}
-
-	responses := make([]cloudflare.Record, 0)
-
-	timeout := time.After(10 * time.Second)
-	//responses := 0
-	OuterLoop:
-		for {
-			select {
-			case r := <-successes:
-				//log.Printf("%s was successful\n", r.Value)
-				responses = append(responses, r)
-
-				addToRoundRobin(client, r, rrs[group], group)
-
-				if addtomixed {
-					addToRoundRobin(client, r, rrs[common.ROUNDROBIN], common.ROUNDROBIN)
-				}
-				if len(responses) == len(rr) {
-					log.Printf("Read all %v responses", len(rr))
-					break OuterLoop
-				}
-			case r := <-failures:
-				//log.Printf("%s failed\n", r.Value)
-				responses = append(responses, r)
-				// TODO: Call these in a go routine?
-				removeFromRoundRobin(client, r, rrs[group])
-				removeFromRoundRobin(client, r, rrs[common.ROUNDROBIN])
-
-				// Only actually destroy the original record if it's for a peer.
-				// Otherwise, we might restart the server or something so it will
-				// work on a future pass.
-				if isPeer(r) {
-					util.Client.DestroyRecord(r.Domain, r.Id)
-				}
-				if len(responses) == len(rr) {
-					log.Printf("Read all %v responses", len(rr))
-					break OuterLoop
-				}
-			case <-timeout:
-				log.Printf("Timed out! Read %v out of %v records", len(responses), len(rr))
-				
-				all := recordsToMap(rr)
-				allResponses := recordsToMap(responses)
-
-				for _, val := range allResponses {
-					delete(all, val.FullName)
-				}
-
-				log.Printf("Deleting %v unresponsive records", len(all))
-				for _, val := range all {
-					log.Printf("Deleting %v unresponsive record", val)
-					removeFromRoundRobin(client, val, rrs[group])
-					removeFromRoundRobin(client, val, rrs[common.ROUNDROBIN])
-
-					// Only actually destroy the original record if it's for a peer.
-					// Otherwise, we might restart the server or something so it will
-					// work on a future pass.
-					if isPeer(val) {
-						client.DestroyRecord(val.Domain, val.Id)
-					}
-				}
-
-
-				// TODO: We should also remove any that didn't explictly succeed.
-				break OuterLoop
-			}
-		}
+// addExisting adds a record to the map of existing records
+func (g *group) addExisting(r cloudflare.Record) {
+	g.existing[r.Value] = r
 }
 
-func recordsToMap(rr []cloudflare.Record) map[string]cloudflare.Record {
-	mapped := make(map[string]cloudflare.Record)
-	for _, r := range rr {
-		mapped[r.FullName] = r
-	}
-	return mapped
-}
-
-func addToRoundRobin(client *cloudflare.Client, r cloudflare.Record, rr []cloudflare.Record, group string) {
-	// Check to see if the peer is already in the round robin before making a call
+// register registers a host with this group in CloudFlare if it isn't already
+// registered
+func (g *group) register(h *host) {
+	// Check to see if the host is already in the round robin before making a call
 	// to the CloudFlare API.
-	if !inRoundRobin(r, rr) {
-		addToSubdomain(client, r, group)
+	_, alreadyRegistered := g.existing[h.record.Value]
+	if !alreadyRegistered {
+		log.Printf("Registering to %s: %s", g.subdomain, h.record.Value)
+		cr := cloudflare.CreateRecord{Type: "A", Name: g.subdomain, Content: h.record.Value}
+		rec, err := util.Client.CreateRecord(common.CF_DOMAIN, &cr)
+
+		if err != nil {
+			log.Printf("Could not register? : %s", err)
+			return
+		}
+
+		// Note for some reason CloudFlare seems to ignore the TTL here.
+		ur := cloudflare.UpdateRecord{Type: "A", Name: g.subdomain, Content: rec.Value, Ttl: "360", ServiceMode: "1"}
+
+		err = util.Client.UpdateRecord(common.CF_DOMAIN, rec.Id, &ur)
+
+		if err != nil {
+			log.Printf("Could not register? : %s", err)
+		}
 	}
 }
 
-func inRoundRobin(r cloudflare.Record, rr []cloudflare.Record) bool {
-	for _, rec := range rr {
-		if rec.Value == r.Value {
-			//log.Println("Server is already in round robin: ", r.Value)
+// unregister unregisters a host from this group in CloudFlare
+func (g *group) unregister(h *host) {
+	existing, registered := g.existing[h.record.Value]
+	if registered {
+		log.Printf("Unregistering from %s: %s", g.subdomain, h.record.Value)
+
+		// Destroy the record in the roundrobin...
+		util.Client.DestroyRecord(existing.Domain, existing.Id)
+	}
+}
+
+// test tests to make sure that this host can proxy traffic and either adds or
+// removes it from CloudFlare DNS depending on the result.
+func (h *host) test(wg *sync.WaitGroup) {
+	if h.isAbleToProxy() {
+		for _, group := range h.groups {
+			group.register(h)
+		}
+	} else {
+		for _, group := range h.groups {
+			group.unregister(h)
+		}
+	}
+	wg.Done()
+}
+
+// isAbleToProxy checks whether we're able to proxy through this host, which
+// might involve multiple checks. Note - when checking servers,  the danger
+// here is that the server start failing because they're overloaded,
+// we start a cascading failure effect where we kill the most overloaded
+// servers and add their load to the remaining ones, thereby making it
+// much more likely those will fail as well. Our approach should take
+// this into account and should only kill servers if their failure rates
+// are much higher than the others and likely leaving a reasonable number
+// of servers in the mix no matter what.
+func (h *host) isAbleToProxy() bool {
+	for i := 0; i < h.testAttempts; i++ {
+		if h.isAbleToProxyOnce() {
+			// If we get a single success we can exit the loop and consider it a success.
 			return true
 		}
 	}
+	// If we get consecutive failures up to our threshhold, consider it a failure.
 	return false
 }
 
-func removeFromRoundRobin(client *cloudflare.Client, r cloudflare.Record, rr []cloudflare.Record) {
-	for _, rec := range rr {
-		// Just look for the same IP.
-		if rec.Value == r.Value {
-			log.Println("Deleting server from round robin: ", r.Value)
+// isAbleToProxyOnce attempts to proxy a reguest through the host
+func (h *host) isAbleToProxyOnce() bool {
+	succeeded := make(chan bool)
+	go func() {
+		succeeded <- h.doIsAbleToProxyOnce()
+	}()
 
-			// Destroy the record in the roundrobin...
-			client.DestroyRecord(rec.Domain, rec.Id)
-			break
+	// Only allow up to testTimeout time for letting single request finish
+	select {
+	case success := <-succeeded:
+		return success
+	case <-time.After(testTimeout):
+		return false
+	}
+}
+
+func (h *host) doIsAbleToProxyOnce() bool {
+	httpClient := clientFor(h.record.Name+".getiantem.org", common.MASQUERADE_AS, common.ROOT_CA)
+
+	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
+	resp, err := httpClient.Do(req)
+	//log.Println("Finished http call for ", rec.Value)
+	if err != nil {
+		fmt.Errorf("HTTP Error: %s", resp)
+		log.Println("HTTP ERROR HITTING PEER: ", h.record.Value, err)
+		return false
+	} else {
+		body, err := ioutil.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		if err != nil {
+			fmt.Errorf("HTTP Body Error: %s", body)
+			log.Println("Error reading body for peer: ", h.record.Value)
+			return false
+		} else {
+			//log.Printf("RESPONSE FOR PEER: %s, %s\n", rec.Value, body)
+			return true
 		}
 	}
 }
@@ -249,93 +231,11 @@ func isPeer(r cloudflare.Record) bool {
 	return len(r.Name) == 32
 }
 
-/*
-func removeAllPeers(client *cloudflare.Client, peers []cloudflare.Record) {
-	for _, r := range peers {
-		log.Println("Removing peer: ", r.Value)
-		client.DestroyRecord(r.Domain, r.Id)
-
-		// TODO: THIS IS WRONG -- SHOULD SEARCH FOR THE IP IN THE ROUNDROBIN
-		client.DestroyRecord(CF_DOMAIN, r.Id)
-	}
-}
-*/
-
-func removeAllPeersFromRoundRobin(client *cloudflare.Client, roundrobin []cloudflare.Record) {
-	for _, r := range roundrobin {
-		if !strings.HasPrefix(r.Value, "128") {
-			client.DestroyRecord(common.CF_DOMAIN, r.Id)
-		}
-	}
-}
-
-func addToSubdomain(client *cloudflare.Client, record cloudflare.Record, subdomain string) {
-	log.Println("ADDING IP TO ROUNDROBIN!!: ", record.Value)
-	cr := cloudflare.CreateRecord{Type: "A", Name: subdomain, Content: record.Value}
-	rec, err := client.CreateRecord(common.CF_DOMAIN, &cr)
-
-	if err != nil {
-		log.Println("Could not create record? ", err)
-		return
-	}
-
-	// Note for some reason CloudFlare seems to ignore the TTL here.
-	ur := cloudflare.UpdateRecord{Type: "A", Name: subdomain, Content: rec.Value, Ttl: "360", ServiceMode: "1"}
-
-	err = client.UpdateRecord(common.CF_DOMAIN, rec.Id, &ur)
-
-	if err != nil {
-		log.Println("Could not update record? ", err)
-	}
-}
-
-func testServer(cf *cloudflare.Client, rec cloudflare.Record, successes chan<- cloudflare.Record,
-	failures chan<- cloudflare.Record, attempts int) {
-
-	for i := 0; i < attempts; i++ {
-		success := runTest(cf, rec)
-
-		if success {
-			// If we get a single success we can exit the loop and consider it a success.
-			successes <- rec
-			break
-		} else if i == (attempts - 1) {
-			// If we get consecutive failures up to our threshhold, consider it a failure.
-			failures <- rec
-		}
-	}
-}
-
-func runTest(cf *cloudflare.Client, rec cloudflare.Record) bool {
-	httpClient := clientFor(rec.Name+".getiantem.org", common.MASQUERADE_AS, common.ROOT_CA)
-
-	req, _ := http.NewRequest("GET", "http://www.google.com/humans.txt", nil)
-	resp, err := httpClient.Do(req)
-	//log.Println("Finished http call for ", rec.Value)
-	if err != nil {
-		fmt.Errorf("HTTP Error: %s", resp)
-		log.Println("HTTP ERROR HITTING PEER: ", rec.Value, err)
-		return false
-	} else {
-		body, err := ioutil.ReadAll(resp.Body)
-		defer resp.Body.Close()
-		if err != nil {
-			fmt.Errorf("HTTP Body Error: %s", body)
-			log.Println("Error reading body for peer: ", rec.Value)
-			return false
-		} else {
-			//log.Printf("RESPONSE FOR PEER: %s, %s\n", rec.Value, body)
-			return true
-		}
-	}
-}
-
-
 func clientFor(upstreamHost string, masqueradeHost string, rootCA string) *http.Client {
 
 	serverInfo := &client.ServerInfo{
-		Host: upstreamHost,
-		Port: 443,
+		Host:              upstreamHost,
+		Port:              443,
 		DialTimeoutMillis: 5000,
 	}
 	masquerade := &client.Masquerade{masqueradeHost, rootCA}

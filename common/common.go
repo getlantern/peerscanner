@@ -2,6 +2,7 @@ package common
 
 import (
 	"log"
+
 	"github.com/getlantern/cloudflare"
 )
 
@@ -103,7 +104,7 @@ func (util *CloudFlareUtil) getAllRecordsByIndex(index int, response *cloudflare
 	if records.Response.Recs.HasMore {
 		//log.Println("Adding additional records")
 		return util.getAllRecordsByIndex(response.Response.Recs.Count, response)
-	} 
+	}
 
 	log.Println("Setting total cached records")
 	util.Cached = response
