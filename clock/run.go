@@ -71,6 +71,8 @@ func testHosts() {
 		peerGroups     = []*group{peers}
 	)
 
+	allPeers := 0
+	allFallbacks := 0
 	hosts := make([]*host, 0)
 	for _, record := range recs {
 		// We just check the length of the subdomain here, which is the unique
@@ -79,9 +81,11 @@ func testHosts() {
 		if isPeer(record) {
 			//log.Println("PEER: ", record.Value)
 			hosts = append(hosts, &host{record, 1, peerGroups})
+			allPeers = allPeers + 1
 		} else if strings.HasPrefix(record.Name, "fl-") {
 			//log.Println("SERVER: ", record.Name, record.Value)
 			hosts = append(hosts, &host{record, 10, fallbackGroups})
+			allFallbacks = allFallbacks + 1
 		} else if record.Name == common.ROUNDROBIN {
 			//log.Println("IN ROUNDROBIN: ", record.Name, record.Value)
 			roundRobin.addExisting(record)
@@ -96,8 +100,8 @@ func testHosts() {
 		}
 	}
 
-	log.Printf("NUMBER OF PEERS: %d", len(peers.existing))
-	log.Printf("NUMBER OF FALLBACKS: %d", len(fallbacks.existing))
+	log.Printf("NUMBER OF FALLBACKS (verified / total): %d / %d", len(fallbacks.existing, allFallbacks))
+	log.Printf("NUMBER OF PEERS     (verified / total): %d / %d", len(peers.existing), allPeers)
 
 	var wg sync.WaitGroup
 	wg.Add(len(hosts))
