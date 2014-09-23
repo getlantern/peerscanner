@@ -100,7 +100,7 @@ func testHosts() {
 		}
 	}
 
-	log.Printf("NUMBER OF FALLBACKS (verified / total): %d / %d", len(fallbacks.existing, allFallbacks))
+	log.Printf("NUMBER OF FALLBACKS (verified / total): %d / %d", len(fallbacks.existing), allFallbacks)
 	log.Printf("NUMBER OF PEERS     (verified / total): %d / %d", len(peers.existing), allPeers)
 
 	var wg sync.WaitGroup
