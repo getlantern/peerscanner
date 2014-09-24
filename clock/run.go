@@ -170,6 +170,10 @@ func (h *host) test(wg *sync.WaitGroup) {
 		}
 		if h.destroyOnFailure {
 			log.Printf("Destroying record %s", h.record.FullName)
+			err := util.Client.DestroyRecord(common.CF_DOMAIN, h.record.Id)
+			if err != nil {
+				log.Println("Error destroying record %s: %s", h.record.FullName, err)
+			}
 		}
 	}
 	wg.Done()
