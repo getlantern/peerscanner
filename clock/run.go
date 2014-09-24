@@ -28,9 +28,10 @@ type group struct {
 
 // host represents a host entry in CloudFlare
 type host struct {
-	record       cloudflare.Record
-	testAttempts int      // how many times to try proxying through this host
-	groups       []*group // groups of which this host is a member
+	record           cloudflare.Record
+	testAttempts     int      // how many times to try proxying through this host
+	destroyOnFailure bool     // whether or not to destroy the original record on failure
+	groups           []*group // groups of which this host is a member
 }
 
 func main() {
@@ -80,11 +81,11 @@ func testHosts() {
 		// this long, it's unlikely.
 		if isPeer(record) {
 			//log.Println("PEER: ", record.Value)
-			hosts = append(hosts, &host{record, 1, peerGroups})
+			hosts = append(hosts, &host{record, 3, true, peerGroups})
 			allPeers = allPeers + 1
 		} else if strings.HasPrefix(record.Name, "fl-") {
 			//log.Println("SERVER: ", record.Name, record.Value)
-			hosts = append(hosts, &host{record, 10, fallbackGroups})
+			hosts = append(hosts, &host{record, 10, false, fallbackGroups})
 			allFallbacks = allFallbacks + 1
 		} else if record.Name == common.ROUNDROBIN {
 			//log.Println("IN ROUNDROBIN: ", record.Name, record.Value)
@@ -166,6 +167,9 @@ func (h *host) test(wg *sync.WaitGroup) {
 	} else {
 		for _, group := range h.groups {
 			group.unregister(h)
+		}
+		if h.destroyOnFailure {
+			log.Printf("Destroying record %s", h.record.FullName)
 		}
 	}
 	wg.Done()
