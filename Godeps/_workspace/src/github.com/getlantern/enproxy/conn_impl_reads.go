@@ -11,34 +11,31 @@ import (
 // processReads processes read requests by polling the proxy with GET requests
 // and reading the data from the resulting response body
 func (c *Conn) processReads() {
-	var resp *http.Response
+	// Wait for connection and response from first write request so that we know
+	// where to send read requests.
+	initialResponse := <-c.initialResponseCh
+	err := initialResponse.err
+	if err != nil {
+		return
+	}
+
+	proxyHost := initialResponse.proxyHost
+	proxyConn := initialResponse.proxyConn
+	resp := initialResponse.resp
 
 	defer c.cleanupAfterReads(resp)
 
-	// Dial proxy
-	proxyConn, bufReader, err := c.dialProxy()
-	if err != nil {
-		log.Printf("Unable to dial proxy to GET data: %s", err)
-		return
-	}
 	defer func() {
 		// If there's a proxyConn at the time that processReads() exits, close
 		// it.
 		if proxyConn != nil {
-			proxyConn.Close()
+			proxyConn.conn.Close()
 		}
 	}()
 
-	// Wait for proxy host determined by first write request so that we know
-	// where to send read requests.
-	initialResponse := <-c.initialResponseCh
-	if initialResponse.err != nil {
-		return
+	mkerror := func(text string, err error) error {
+		return fmt.Errorf("Dest: %s    ProxyHost: %s    %s: %s", c.Addr, proxyHost, text, err)
 	}
-	proxyHost := initialResponse.proxyHost
-	// Also grab the initial response body to save an extra round trip for the
-	// first read
-	resp = initialResponse.resp
 
 	for {
 		if c.isClosed() {
@@ -55,25 +52,21 @@ func (c *Conn) processReads() {
 					return
 				}
 
-				// First, redial the proxy if necessary
-				proxyConn, bufReader, err := c.redialProxyIfNecessary(proxyConn, bufReader)
+				proxyConn, err = c.redialProxyIfNecessary(proxyConn)
 				if err != nil {
-					c.readResponsesCh <- rwResponse{0, fmt.Errorf("Unable to redial proxy: %s", err)}
+					c.readResponsesCh <- rwResponse{0, mkerror("Unable to redial proxy", err)}
 					return
 				}
 
-				// Then, issue a new request
-				resp, err = c.doRequest(proxyConn, bufReader, proxyHost, OP_READ, nil)
+				resp, err = c.doRequest(proxyConn, proxyHost, OP_READ, nil)
 				if err != nil {
-					err = fmt.Errorf("Unable to issue read request to %s: %s", proxyHost, err)
-					log.Println(err.Error())
+					err = mkerror("Unable to issue read request", err)
+					log.Println(err)
 					c.readResponsesCh <- rwResponse{0, err}
 					return
 				}
 			}
 
-			// Process read, but don't wait longer than IdleTimeout
-			proxyConn.SetReadDeadline(time.Now().Add(c.Config.IdleTimeout))
 			n, err := resp.Body.Read(b)
 			if n > 0 {
 				c.markActive()
@@ -99,7 +92,7 @@ func (c *Conn) processReads() {
 					}
 					continue
 				} else {
-					log.Printf("Unexpected error reading from proxyConn: %s", err)
+					log.Print("Error reading: %s", err)
 					return
 				}
 			}

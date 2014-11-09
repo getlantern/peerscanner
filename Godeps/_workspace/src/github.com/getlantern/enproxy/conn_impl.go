@@ -2,16 +2,13 @@ package enproxy
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
-	"log"
-	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
+	"github.com/getlantern/idletiming"
 )
 
 // Connect opens a connection to the proxy and starts processing writes and
@@ -22,6 +19,7 @@ func (c *Conn) Connect() (err error) {
 	c.initDefaults()
 	c.makeChannels()
 	c.markActive()
+	c.initRequestStrategy()
 
 	go c.processWrites()
 	go c.processReads()
@@ -47,52 +45,55 @@ func (c *Conn) makeChannels() {
 	c.readRequestsCh = make(chan []byte)
 	c.readResponsesCh = make(chan rwResponse)
 	c.stopReadCh = make(chan interface{}, closeChannelDepth)
-	c.requestOutCh = make(chan []byte)
+	c.requestOutCh = make(chan *request)
 	c.requestFinishedCh = make(chan error)
 	c.stopRequestCh = make(chan interface{}, closeChannelDepth)
 }
 
-func (c *Conn) dialProxy() (proxyConn net.Conn, bufReader *bufio.Reader, err error) {
-	proxyConn, err = c.Config.DialProxy(c.Addr)
-	if err != nil {
-		err = fmt.Errorf("Unable to dial proxy: %s", err)
-		return
-	}
-	bufReader = bufio.NewReader(proxyConn)
-	return
-}
-
-// redialProxyIfNecessary redials the proxy if the original connection got
-// closed somehow.  This will happen especially when using an intermediary proxy
-// like a CDN, which will sometimes aggressively close idle connections.
-func (c *Conn) redialProxyIfNecessary(origProxyConn net.Conn, origBufReader *bufio.Reader) (proxyConn net.Conn, bufReader *bufio.Reader, err error) {
-	// Default to keeping the same connection
-	proxyConn = origProxyConn
-	bufReader = origBufReader
-
-	// Make sure connection is still open and redial if necessary
-	origProxyConn.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
-	_, err = origBufReader.Peek(1)
-	origProxyConn.SetReadDeadline(time.Time{})
-	if err == io.EOF {
-		// Close original connection
-		origProxyConn.Close()
-		// Dial again
-		proxyConn, bufReader, err = c.dialProxy()
-		if err != nil {
-			log.Println("Unable to redial proxy: %s", err)
-			return
+func (c *Conn) initRequestStrategy() {
+	if c.Config.BufferRequests {
+		c.rs = &bufferingRequestStrategy{
+			c: c,
 		}
 	} else {
-		err = nil
+		c.rs = &streamingRequestStrategy{
+			c: c,
+		}
 	}
-	return
 }
 
-func (c *Conn) doRequest(proxyConn net.Conn, bufReader *bufio.Reader, host string, op string, bodyBytes []byte) (resp *http.Response, err error) {
+func (c *Conn) dialProxy() (*connInfo, error) {
+	conn, err := c.Config.DialProxy(c.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to dial proxy: %s", err)
+	}
+	proxyConn := &connInfo{
+		bufReader: bufio.NewReader(conn),
+	}
+	proxyConn.conn = idletiming.Conn(conn, c.Config.IdleTimeout, func() {
+		// When the underlying connection times out, mark the connInfo closed
+		proxyConn.closedMutex.Lock()
+		defer proxyConn.closedMutex.Unlock()
+		proxyConn.closed = true
+	})
+	return proxyConn, nil
+}
+
+func (c *Conn) redialProxyIfNecessary(proxyConn *connInfo) (*connInfo, error) {
+	proxyConn.closedMutex.Lock()
+	defer proxyConn.closedMutex.Unlock()
+	if proxyConn.closed || proxyConn.conn.TimesOutIn() < oneSecond {
+		proxyConn.conn.Close()
+		return c.dialProxy()
+	} else {
+		return proxyConn, nil
+	}
+}
+
+func (c *Conn) doRequest(proxyConn *connInfo, host string, op string, request *request) (resp *http.Response, err error) {
 	var body io.Reader
-	if bodyBytes != nil {
-		body = &closer{bytes.NewReader(bodyBytes)}
+	if request != nil {
+		body = request.body
 	}
 	req, err := c.Config.NewRequest(host, "POST", body)
 	if err != nil {
@@ -105,30 +106,22 @@ func (c *Conn) doRequest(proxyConn net.Conn, bufReader *bufio.Reader, host strin
 	// Always send the address that we're trying to reach
 	req.Header.Set(X_ENPROXY_DEST_ADDR, c.Addr)
 	req.Header.Set("Content-type", "application/octet-stream")
-	if bodyBytes != nil {
-		// Always force identity encoding to appeas CDNs like Fastly that can't
+	if request != nil && request.length > 0 {
+		// Force identity encoding to appeas CDNs like Fastly that can't
 		// handle chunked encoding on requests
 		req.TransferEncoding = []string{"identity"}
-		req.ContentLength = int64(len(bodyBytes))
+		req.ContentLength = int64(request.length)
 	} else {
 		req.ContentLength = 0
 	}
 
-	// Important - we set WriteDeadline and ReadDeadline separately instead of
-	// calling SetDeadline because we will later change the read and write
-	// deadlines independently.
-
-	// Don't spend more than IdleTimeout trying to write to request
-	proxyConn.SetWriteDeadline(time.Now().Add(c.Config.IdleTimeout))
-	err = req.Write(proxyConn)
+	err = req.Write(proxyConn.conn)
 	if err != nil {
 		err = fmt.Errorf("Error sending request to proxy: %s", err)
 		return
 	}
 
-	// Don't spend more than IdleTimeout trying to read from response
-	proxyConn.SetReadDeadline(time.Now().Add(c.Config.IdleTimeout))
-	resp, err = http.ReadResponse(bufReader, req)
+	resp, err = http.ReadResponse(proxyConn.bufReader, req)
 	if err != nil {
 		err = fmt.Errorf("Error reading response from proxy: %s", err)
 		return
@@ -156,17 +149,6 @@ func (c *Conn) isIdle() bool {
 	defer c.lastActivityMutex.RUnlock()
 	timeSinceLastActivity := time.Now().Sub(c.lastActivityTime)
 	return timeSinceLastActivity > c.Config.IdleTimeout
-}
-
-func BadGateway(w io.Writer, msg string) {
-	log.Printf("Sending BadGateway: %s", msg)
-	resp := &http.Response{
-		StatusCode: 502,
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Body:       &closer{strings.NewReader(msg)},
-	}
-	resp.Write(w)
 }
 
 type closer struct {

@@ -16,10 +16,11 @@ import (
 func (c *Conn) processRequests() {
 	var resp *http.Response
 
-	defer c.cleanupAfterRequests(resp)
+	first := true
+	defer c.cleanupAfterRequests(resp, first)
 
 	// Dial proxy
-	proxyConn, bufReader, err := c.dialProxy()
+	proxyConn, err := c.dialProxy()
 	if err != nil {
 		log.Printf("Unable to dial proxy for POSTing request: %s", err)
 		return
@@ -27,13 +28,16 @@ func (c *Conn) processRequests() {
 	defer func() {
 		// If there's a proxyConn at the time that processRequests() exits,
 		// close it.
-		if proxyConn != nil {
-			proxyConn.Close()
+		if !first && proxyConn != nil {
+			proxyConn.conn.Close()
 		}
 	}()
 
 	var proxyHost string
-	first := true
+
+	mkerror := func(text string, err error) error {
+		return fmt.Errorf("Dest: %s    ProxyHost: %s    %s: %s", c.Addr, proxyHost, text, err)
+	}
 
 	for {
 		if c.isClosed() {
@@ -41,26 +45,25 @@ func (c *Conn) processRequests() {
 		}
 
 		select {
-		case reqBody := <-c.requestOutCh:
-			// Redial the proxy if necessary
-			proxyConn, bufReader, err := c.redialProxyIfNecessary(proxyConn, bufReader)
+		case request := <-c.requestOutCh:
+			proxyConn, err = c.redialProxyIfNecessary(proxyConn)
 			if err != nil {
-				err = fmt.Errorf("Unable to redial proxy: %s", err)
-				log.Println(err.Error())
+				err = mkerror("Unable to redial proxy", err)
+				log.Println(err)
 				if first {
-					c.initialResponseCh <- hostWithResponse{"", nil, err}
+					c.initialResponseCh <- hostWithResponse{err: err}
 				}
 				return
 			}
 
 			// Then issue new request
-			resp, err = c.doRequest(proxyConn, bufReader, proxyHost, OP_WRITE, reqBody)
+			resp, err = c.doRequest(proxyConn, proxyHost, OP_WRITE, request)
 			c.requestFinishedCh <- err
 			if err != nil {
-				err = fmt.Errorf("Unable to issue write request to %s: %s", proxyHost, err)
+				err = mkerror("Unable to issue write request", err)
 				log.Println(err.Error())
 				if first {
-					c.initialResponseCh <- hostWithResponse{"", nil, err}
+					c.initialResponseCh <- hostWithResponse{err: err}
 				}
 				return
 			}
@@ -69,11 +72,26 @@ func (c *Conn) processRequests() {
 				// On our first request, find out what host we're actually
 				// talking to and remember that for future requests.
 				proxyHost = resp.Header.Get(X_ENPROXY_PROXY_HOST)
+
 				// Also post it to initialResponseCh so that the processReads()
 				// routine knows which proxyHost to use and gets the initial
 				// response data
-				c.initialResponseCh <- hostWithResponse{proxyHost, resp, nil}
+				c.initialResponseCh <- hostWithResponse{
+					proxyHost: proxyHost,
+					proxyConn: proxyConn,
+					resp:      resp,
+				}
+
 				first = false
+
+				// Dial again because our old proxyConn is now being used by the
+				// reader goroutine
+				proxyConn, err = c.dialProxy()
+				if err != nil {
+					err = mkerror("Unable to dial proxy for 2nd request", err)
+					log.Println(err)
+					return
+				}
 			} else {
 				resp.Body.Close()
 			}
@@ -90,18 +108,18 @@ func (c *Conn) processRequests() {
 // submitRequest submits a request to the processRequests goroutine, returning
 // true if the request was accepted or false if requests are no longer being
 // accepted
-func (c *Conn) submitRequest(body []byte) bool {
+func (c *Conn) submitRequest(request *request) bool {
 	c.requestMutex.RLock()
 	defer c.requestMutex.RUnlock()
 	if c.doneRequesting {
 		return false
 	} else {
-		c.requestOutCh <- body
+		c.requestOutCh <- request
 		return true
 	}
 }
 
-func (c *Conn) cleanupAfterRequests(resp *http.Response) {
+func (c *Conn) cleanupAfterRequests(resp *http.Response, first bool) {
 	panicked := recover()
 
 	for {
@@ -119,7 +137,7 @@ func (c *Conn) cleanupAfterRequests(resp *http.Response) {
 			c.doneRequesting = true
 			c.requestMutex.Unlock()
 			close(c.requestOutCh)
-			if resp != nil {
+			if !first && resp != nil {
 				resp.Body.Close()
 			}
 			return

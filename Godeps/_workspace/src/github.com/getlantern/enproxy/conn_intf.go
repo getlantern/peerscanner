@@ -1,11 +1,14 @@
 package enproxy
 
 import (
+	"bufio"
 	"io"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/getlantern/idletiming"
 )
 
 const (
@@ -22,7 +25,7 @@ const (
 var (
 	defaultWriteFlushTimeout = 35 * time.Millisecond
 	defaultReadFlushTimeout  = 35 * time.Millisecond
-	defaultIdleTimeoutClient = 30 * time.Second // if this is set too low, Lantern's login sequence runs into trouble
+	defaultIdleTimeoutClient = 30 * time.Second
 	defaultIdleTimeoutServer = 70 * time.Second
 
 	// closeChannelDepth: controls depth of channels used for close processing.
@@ -31,6 +34,8 @@ var (
 	closeChannelDepth = 20
 
 	bodySize = 65536 // size of buffer used for request bodies
+
+	oneSecond = 1 * time.Second
 )
 
 // Conn is a net.Conn that tunnels its data via an httpconn.Proxy using HTTP
@@ -94,8 +99,7 @@ type Conn struct {
 	stopWriteCh      chan interface{}
 	doneWriting      bool
 	writeMutex       sync.RWMutex // synchronizes access to doneWriting flag
-	currentBody      []byte
-	currentBytesRead int
+	rs               requestStrategy
 
 	/* Read processing */
 	readRequestsCh  chan []byte     // requests to read
@@ -105,7 +109,7 @@ type Conn struct {
 	readMutex       sync.RWMutex // synchronizes access to doneReading flag
 
 	/* Request processing */
-	requestOutCh      chan []byte // channel for next outgoing request body
+	requestOutCh      chan *request // channel for next outgoing request body
 	requestFinishedCh chan error
 	stopRequestCh     chan interface{}
 	doneRequesting    bool
@@ -117,9 +121,8 @@ type Conn struct {
 	closed            bool         // whether or not this Conn is closed
 	closedMutex       sync.RWMutex // mutex controlling access to closed flag
 
-	/* Fields for tracking current request and response */
-	reqBodyWriter *io.PipeWriter // pipe writer to current request body
-	resp          *http.Response // the current response being used to read data
+	/* Track current response */
+	resp *http.Response // the current response being used to read data
 }
 
 // Config configures a Conn
@@ -135,9 +138,20 @@ type Config struct {
 	FlushTimeout time.Duration
 
 	// IdleTimeout: how long to wait before closing an idle connection, defaults
-	// to 70 seconds.  The high default value is selected to work well with XMPP
-	// traffic tunneled over enproxy by Lantern.
+	// to 30 seconds on the client and 70 seconds on the server proxy.
+	//
+	// For clients, the value should be set lower than the proxy's idle timeout
+	// so that enproxy redials before the active connection is closed. The value
+	// should be set higher than the maximum possible time between the proxy
+	// receiving the last data from a request and the proxy returning the first
+	// data of the response, otherwise the connection will be closed in the
+	// middle of processing a request.
 	IdleTimeout time.Duration
+
+	// BufferRequests: if true, requests to the proxy will be buffered and sent
+	// with identity encoding.  If false, they'll be streamed with chunked
+	// encoding.
+	BufferRequests bool
 }
 
 // dialFunc is a function that dials an address (e.g. the upstream proxy)
@@ -152,8 +166,16 @@ type rwResponse struct {
 	err error
 }
 
+type connInfo struct {
+	conn        *idletiming.IdleTimingConn
+	bufReader   *bufio.Reader
+	closed      bool
+	closedMutex sync.Mutex
+}
+
 type hostWithResponse struct {
 	proxyHost string
+	proxyConn *connInfo
 	resp      *http.Response
 	err       error
 }
