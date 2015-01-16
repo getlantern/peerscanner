@@ -9,8 +9,8 @@ import (
 type RecordsResponse struct {
 	Response struct {
 		Recs struct {
-			Count int `json:"count"`
-			HasMore bool `json:"has_more"`
+			Count   int      `json:"count"`
+			HasMore bool     `json:"has_more"`
 			Records []Record `json:"objs"`
 		} `json:"recs"`
 	} `json:"response"`
@@ -139,10 +139,10 @@ func (c *Client) CreateRecord(domain string, opts *CreateRecord) (*Record, error
 	}
 
 	resp, err := checkResp(c.Http.Do(req))
-
 	if err != nil {
 		return nil, fmt.Errorf("Error creating record: %s", err)
 	}
+	defer resp.Body.Close()
 
 	recordResp := new(RecordResponse)
 
@@ -175,10 +175,10 @@ func (c *Client) DestroyRecord(domain string, id string) error {
 	}
 
 	resp, err := checkResp(c.Http.Do(req))
-
 	if err != nil {
 		return fmt.Errorf("Error deleting record: %s", err)
 	}
+	defer resp.Body.Close()
 
 	recordResp := new(RecordResponse)
 
@@ -199,11 +199,11 @@ func (c *Client) DestroyRecord(domain string, id string) error {
 // UpdateRecord contains the request parameters to update a
 // record.
 type UpdateRecord struct {
-	Type     string
-	Name     string
-	Content  string
-	Ttl      string
-	Priority string
+	Type        string
+	Name        string
+	Content     string
+	Ttl         string
+	Priority    string
 	ServiceMode string
 }
 
@@ -234,9 +234,8 @@ func (c *Client) UpdateRecord(domain string, id string, opts *UpdateRecord) erro
 	}
 
 	if opts.ServiceMode != "" {
-		params["service_mode"] = opts.ServiceMode	
+		params["service_mode"] = opts.ServiceMode
 	}
-	
 
 	req, err := c.NewRequest(params, "POST", "rec_edit")
 	if err != nil {
@@ -244,10 +243,10 @@ func (c *Client) UpdateRecord(domain string, id string, opts *UpdateRecord) erro
 	}
 
 	resp, err := checkResp(c.Http.Do(req))
-
 	if err != nil {
 		return fmt.Errorf("Error updating record: %s", err)
 	}
+	defer resp.Body.Close()
 
 	recordResp := new(RecordResponse)
 
@@ -292,7 +291,6 @@ func (c *Client) RetrieveRecordByName(domain string, name string) (*Record, erro
 		return nil, err
 	}
 
-
 	record, err := records.FindRecordByName(name)
 	if err != nil {
 		return nil, err
@@ -328,6 +326,7 @@ func (c *Client) loadAll(params *map[string]string) (*RecordsResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error destroying record: %s", err)
 	}
+	defer resp.Body.Close()
 
 	records := new(RecordsResponse)
 
