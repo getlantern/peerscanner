@@ -1,22 +1,20 @@
-// main simply contains the primary web serving code that allows peers to 
+// main simply contains the primary web serving code that allows peers to
 // register and unregister as give mode peers running within the Lantern
 // network
 package main
 
 import (
 	"fmt"
+	"github.com/getlantern/cloudflare"
+	"github.com/getlantern/fronted"
+	"github.com/getlantern/peerscanner/common"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
-	//"io/ioutil"
 	"strings"
 	"time"
-
-	"github.com/getlantern/cloudflare"
-	"github.com/getlantern/flashlight/client"
-	"github.com/getlantern/peerscanner/common"
 )
 
 type Reg struct {
@@ -67,11 +65,11 @@ func register(w http.ResponseWriter, request *http.Request) {
 		if err == nil {
 			go func() {
 				/*
-				if reg.Ip == "23.243.192.92" ||
-					reg.Ip == "66.69.242.177" ||
-					reg.Ip == "83.45.165.48" ||
-					reg.Ip == "107.201.128.213" {	
-				}
+					if reg.Ip == "23.243.192.92" ||
+						reg.Ip == "66.69.242.177" ||
+						reg.Ip == "83.45.165.48" ||
+						reg.Ip == "107.201.128.213" {
+					}
 				*/
 				//log.Println("Registering peer: ", reg.Ip)
 				registerPeer(reg)
@@ -167,7 +165,8 @@ func callbackToPeer(upstreamHost string) error {
 }
 
 func clientFor(upstreamHost string) *http.Client {
-	serverInfo := &client.ServerInfo{
+
+	d := fronted.NewDialer(&fronted.Config{
 		Host: upstreamHost,
 		Port: 443,
 		// We use a higher timeout on this initial check
@@ -176,11 +175,11 @@ func clientFor(upstreamHost string) *http.Client {
 		// check later.
 		DialTimeoutMillis:  12000,
 		InsecureSkipVerify: true,
-	}
-	//masquerade := &client.Masquerade{common.MASQUERADE_AS, common.ROOT_CA}
-	httpClient := client.HttpClient(serverInfo, nil)
+	})
 
-	return httpClient
+	return d.HttpClientUsing(&fronted.Masquerade{
+		Domain: common.MASQUERADE_AS,
+	})
 }
 
 func registerPeer(reg *Reg) {
@@ -189,7 +188,7 @@ func registerPeer(reg *Reg) {
 		for _, record := range recs {
 			if record.Name == reg.Name {
 				log.Println("Already registered...returning")
-				return 
+				return
 			}
 		}
 	} else {
