@@ -173,7 +173,7 @@ func clientFor(upstreamHost string) *http.Client {
 		// because we're just verifying some form of
 		// connectivity. We vet peers using a more aggressive
 		// check later.
-		DialTimeoutMillis:  12000,
+		DialTimeoutMillis:  7000,
 		InsecureSkipVerify: true,
 	})
 
