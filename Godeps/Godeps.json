@@ -30,11 +30,6 @@
 			"Rev": "b76ce7df5fde6fc5c0df5980eed1820c0d46074f"
 		},
 		{
-			"ImportPath": "github.com/getlantern/flashlight/nattest",
-			"Comment": "ipreify-test-40-gb76ce7d",
-			"Rev": "b76ce7df5fde6fc5c0df5980eed1820c0d46074f"
-		},
-		{
 			"ImportPath": "github.com/getlantern/flashlight/proxy",
 			"Comment": "ipreify-test-40-gb76ce7d",
 			"Rev": "b76ce7df5fde6fc5c0df5980eed1820c0d46074f"
@@ -42,11 +37,6 @@
 		{
 			"ImportPath": "github.com/getlantern/framed",
 			"Rev": "fccb28b01a1889516d9d37f475dcf14cd070d588"
-		},
-		{
-			"ImportPath": "github.com/getlantern/go-natty/natty",
-			"Comment": "v0.0.1-21-ge078e58",
-			"Rev": "e078e583d613dc254c80156c5067570ee05b52e0"
 		},
 		{
 			"ImportPath": "github.com/getlantern/golog",
@@ -59,14 +49,6 @@
 		{
 			"ImportPath": "github.com/getlantern/keyman",
 			"Rev": "c0b33bca5150ded1f4d7681717cc5d1b8412886e"
-		},
-		{
-			"ImportPath": "github.com/getlantern/nattywad",
-			"Rev": "df3b2e1bb98e8ddfbeb0f3fc64fa1b1a09e5f333"
-		},
-		{
-			"ImportPath": "github.com/getlantern/waddell",
-			"Rev": "ab095a4ac363c9f10e73b4eb3a9b1ae8acc2f736"
 		},
 		{
 			"ImportPath": "github.com/oxtoacart/bpool",
