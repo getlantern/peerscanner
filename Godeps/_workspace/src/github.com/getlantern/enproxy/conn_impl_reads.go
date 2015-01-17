@@ -33,7 +33,7 @@ func (c *Conn) processReads() {
 	}()
 
 	mkerror := func(text string, err error) error {
-		return fmt.Errorf("Dest: %s    ProxyHost: %s    %s: %s", c.addr, proxyHost, text, err)
+		return fmt.Errorf("Dest: %s    ProxyHost: %s    %s: %s", c.Addr, proxyHost, text, err)
 	}
 
 	for {
@@ -97,7 +97,7 @@ func (c *Conn) processReads() {
 			}
 		case <-c.stopReadCh:
 			return
-		case <-time.After(c.config.IdleTimeout):
+		case <-time.After(c.Config.IdleTimeout):
 			if c.isIdle() {
 				return
 			}

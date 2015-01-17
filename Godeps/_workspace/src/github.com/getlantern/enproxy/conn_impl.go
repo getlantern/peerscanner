@@ -11,18 +11,10 @@ import (
 	"github.com/getlantern/idletiming"
 )
 
-// Dial creates a Conn, opens a connection to the proxy and starts processing
-// writes and reads on the Conn.
-//
-// addr: the host:port of the destination server that we're trying to reach
-//
-// config: configuration for this Conn
-func Dial(addr string, config *Config) (*Conn, error) {
-	c := &Conn{
-		id:     uuid.NewRandom().String(),
-		addr:   addr,
-		config: config,
-	}
+// Connect opens a connection to the proxy and starts processing writes and
+// reads to this Conn.
+func (c *Conn) Connect() error {
+	c.id = uuid.NewRandom().String()
 
 	c.initDefaults()
 	c.makeChannels()
@@ -35,20 +27,20 @@ func Dial(addr string, config *Config) (*Conn, error) {
 	// Dial proxy
 	proxyConn, err := c.dialProxy()
 	if err != nil {
-		return nil, fmt.Errorf("Unable to dial proxy: %s", err)
+		return fmt.Errorf("Unable to dial proxy: %s", err)
 	}
 
 	go c.processRequests(proxyConn)
 
-	return c, nil
+	return nil
 }
 
 func (c *Conn) initDefaults() {
-	if c.config.FlushTimeout == 0 {
-		c.config.FlushTimeout = defaultWriteFlushTimeout
+	if c.Config.FlushTimeout == 0 {
+		c.Config.FlushTimeout = defaultWriteFlushTimeout
 	}
-	if c.config.IdleTimeout == 0 {
-		c.config.IdleTimeout = defaultIdleTimeoutClient
+	if c.Config.IdleTimeout == 0 {
+		c.Config.IdleTimeout = defaultIdleTimeoutClient
 	}
 }
 
@@ -66,7 +58,7 @@ func (c *Conn) makeChannels() {
 }
 
 func (c *Conn) initRequestStrategy() {
-	if c.config.BufferRequests {
+	if c.Config.BufferRequests {
 		c.rs = &bufferingRequestStrategy{
 			c: c,
 		}
@@ -78,14 +70,14 @@ func (c *Conn) initRequestStrategy() {
 }
 
 func (c *Conn) dialProxy() (*connInfo, error) {
-	conn, err := c.config.DialProxy(c.addr)
+	conn, err := c.Config.DialProxy(c.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to dial proxy: %s", err)
 	}
 	proxyConn := &connInfo{
 		bufReader: bufio.NewReader(conn),
 	}
-	proxyConn.conn = idletiming.Conn(conn, c.config.IdleTimeout, func() {
+	proxyConn.conn = idletiming.Conn(conn, c.Config.IdleTimeout, func() {
 		// When the underlying connection times out, mark the connInfo closed
 		proxyConn.closedMutex.Lock()
 		defer proxyConn.closedMutex.Unlock()
@@ -110,7 +102,7 @@ func (c *Conn) doRequest(proxyConn *connInfo, host string, op string, request *r
 	if request != nil {
 		body = request.body
 	}
-	req, err := c.config.NewRequest(host, "POST", body)
+	req, err := c.Config.NewRequest(host, "POST", body)
 	if err != nil {
 		err = fmt.Errorf("Unable to construct request to proxy: %s", err)
 		return
@@ -119,7 +111,7 @@ func (c *Conn) doRequest(proxyConn *connInfo, host string, op string, request *r
 	// Always send our connection id
 	req.Header.Set(X_ENPROXY_ID, c.id)
 	// Always send the address that we're trying to reach
-	req.Header.Set(X_ENPROXY_DEST_ADDR, c.addr)
+	req.Header.Set(X_ENPROXY_DEST_ADDR, c.Addr)
 	req.Header.Set("Content-type", "application/octet-stream")
 	if request != nil && request.length > 0 {
 		// Force identity encoding to appeas CDNs like Fastly that can't
@@ -163,7 +155,7 @@ func (c *Conn) isIdle() bool {
 	c.lastActivityMutex.RLock()
 	defer c.lastActivityMutex.RUnlock()
 	timeSinceLastActivity := time.Now().Sub(c.lastActivityTime)
-	return timeSinceLastActivity > c.config.IdleTimeout
+	return timeSinceLastActivity > c.Config.IdleTimeout
 }
 
 type closer struct {

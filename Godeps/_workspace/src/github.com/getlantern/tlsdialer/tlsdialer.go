@@ -6,8 +6,8 @@ package tlsdialer
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/getlantern/golog"
@@ -83,10 +83,20 @@ func DialForTimings(dialer *net.Dialer, network, addr string, sendServerName boo
 	var errCh chan error
 
 	if timeout != 0 {
-		errCh = make(chan error, 10)
+		errCh = make(chan error)
 		time.AfterFunc(timeout, func() {
 			errCh <- timeoutError{}
 		})
+		defer func() {
+			// Drain errCh
+			for {
+				select {
+				case <-errCh:
+				default:
+					return
+				}
+			}
+		}()
 	}
 
 	log.Tracef("Resolving addr: %s", addr)
@@ -97,12 +107,12 @@ func DialForTimings(dialer *net.Dialer, network, addr string, sendServerName boo
 		result.ResolvedAddr, err = net.ResolveTCPAddr("tcp", addr)
 	} else {
 		log.Tracef("Resolving on goroutine")
-		resolvedCh := make(chan *net.TCPAddr, 10)
+		resolvedCh := make(chan *net.TCPAddr)
 		go func() {
 			resolved, err := net.ResolveTCPAddr("tcp", addr)
 			log.Tracef("Resolution resulted in %s : %s", resolved, err)
-			resolvedCh <- resolved
 			errCh <- err
+			resolvedCh <- resolved
 		}()
 		err = <-errCh
 		if err == nil {
@@ -126,10 +136,11 @@ func DialForTimings(dialer *net.Dialer, network, addr string, sendServerName boo
 	result.ConnectTime = time.Now().Sub(start)
 	log.Tracef("Dialed in %s", result.ConnectTime)
 
-	hostname, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return result, fmt.Errorf("Unable to split host and port for %v: %v", addr, err)
+	colonPos := strings.LastIndex(addr, ":")
+	if colonPos == -1 {
+		colonPos = len(addr)
 	}
+	hostname := addr[:colonPos]
 
 	if config == nil {
 		config = &tls.Config{}

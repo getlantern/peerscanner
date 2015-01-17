@@ -8,35 +8,30 @@ import (
 	"time"
 )
 
-var (
-	epoch = time.Unix(0, 0)
-)
-
 // Conn creates a new net.Conn wrapping the given net.Conn that times out after
 // the specified period. Read and Write calls will timeout if they take longer
-// than the indicated idleTimeout.
+// than the indicated
 //
 // idleTimeout specifies how long to wait for inactivity before considering
 // connection idle.
 //
-// onIdle is a required function that's called if a connection idles.
-// idletiming.Conn does not close the underlying connection on idle, you have to
-// do that in your onIdle callback.
-func Conn(conn net.Conn, idleTimeout time.Duration, onIdle func()) *IdleTimingConn {
-	if onIdle == nil {
-		panic("onIdle is required")
-	}
-
+// onClose is an optional function to call after the connection has been closed,
+// whether or not that was due to the connection idling.
+func Conn(conn net.Conn, idleTimeout time.Duration, onClose func()) *IdleTimingConn {
 	c := &IdleTimingConn{
 		conn:             conn,
 		idleTimeout:      idleTimeout,
 		halfIdleTimeout:  time.Duration(idleTimeout.Nanoseconds() / 2),
-		activeCh:         make(chan bool, 1),
-		closedCh:         make(chan bool, 1),
+		activeCh:         make(chan bool, 10),
+		closedCh:         make(chan bool, 10),
 		lastActivityTime: int64(time.Now().UnixNano()),
 	}
 
 	go func() {
+		if onClose != nil {
+			defer onClose()
+		}
+
 		timer := time.NewTimer(idleTimeout)
 		defer timer.Stop()
 		for {
@@ -47,9 +42,10 @@ func Conn(conn net.Conn, idleTimeout time.Duration, onIdle func()) *IdleTimingCo
 				atomic.StoreInt64(&c.lastActivityTime, time.Now().UnixNano())
 				continue
 			case <-timer.C:
-				onIdle()
+				//c.Close()
 				return
 			case <-c.closedCh:
+				c.Close()
 				return
 			}
 		}
@@ -64,8 +60,8 @@ type IdleTimingConn struct {
 	conn             net.Conn
 	idleTimeout      time.Duration
 	halfIdleTimeout  time.Duration
-	readDeadline     int64
-	writeDeadline    int64
+	readDeadline     *time.Time
+	writeDeadline    *time.Time
 	activeCh         chan bool
 	closedCh         chan bool
 	lastActivityTime int64
@@ -80,22 +76,20 @@ func (c *IdleTimingConn) TimesOutIn() time.Duration {
 // TimesOutAt returns the time at which this connection will time out, assuming
 // there is no further activity
 func (c *IdleTimingConn) TimesOutAt() time.Time {
-	return time.Unix(0, atomic.LoadInt64(&c.lastActivityTime)).Add(c.idleTimeout)
+	return time.Unix(0, c.lastActivityTime).Add(c.idleTimeout)
 }
 
 // Read implements the method from io.Reader
 func (c *IdleTimingConn) Read(b []byte) (int, error) {
 	totalN := 0
-	readDeadline := time.Unix(0, atomic.LoadInt64(&c.readDeadline))
-
 	// Continually read while we can, always setting a deadline that's less than
 	// our idleTimeout so that we can update our active status before we hit the
 	// idleTimeout.
 	for {
 		maxDeadline := time.Now().Add(c.halfIdleTimeout)
-		if readDeadline != epoch && !maxDeadline.Before(readDeadline) {
+		if c.readDeadline != nil && !maxDeadline.Before(*c.readDeadline) {
 			// Caller's deadline is before ours, use it
-			c.conn.SetReadDeadline(readDeadline)
+			c.conn.SetReadDeadline(*c.readDeadline)
 			n, err := c.conn.Read(b)
 			c.markActive(n)
 			totalN = totalN + n
@@ -106,13 +100,12 @@ func (c *IdleTimingConn) Read(b []byte) (int, error) {
 			n, err := c.conn.Read(b)
 			c.markActive(n)
 			totalN = totalN + n
-			hitMaxDeadline := isTimeout(err) && !time.Now().Before(maxDeadline)
-			if hitMaxDeadline {
-				// Ignore timeouts when encountering deadline based on
-				// IdleTimeout
+			timedOut := isTimeout(err)
+			if timedOut {
+				// Ignore timeouts when using deadline based on IdleTimeout
 				err = nil
 			}
-			if n == 0 || !hitMaxDeadline {
+			if n == 0 || !timedOut {
 				return totalN, err
 			}
 			b = b[n:]
@@ -123,16 +116,14 @@ func (c *IdleTimingConn) Read(b []byte) (int, error) {
 // Write implements the method from io.Reader
 func (c *IdleTimingConn) Write(b []byte) (int, error) {
 	totalN := 0
-	writeDeadline := time.Unix(0, atomic.LoadInt64(&c.writeDeadline))
-
 	// Continually write while we can, always setting a deadline that's less
 	// than our idleTimeout so that we can update our active status before we
 	// hit the idleTimeout.
 	for {
 		maxDeadline := time.Now().Add(c.halfIdleTimeout)
-		if writeDeadline != epoch && !maxDeadline.Before(writeDeadline) {
+		if c.writeDeadline != nil && !maxDeadline.Before(*c.writeDeadline) {
 			// Caller's deadline is before ours, use it
-			c.conn.SetWriteDeadline(writeDeadline)
+			c.conn.SetWriteDeadline(*c.writeDeadline)
 			n, err := c.conn.Write(b)
 			c.markActive(n)
 			totalN = totalN + n
@@ -143,13 +134,12 @@ func (c *IdleTimingConn) Write(b []byte) (int, error) {
 			n, err := c.conn.Write(b)
 			c.markActive(n)
 			totalN = totalN + n
-			hitMaxDeadline := isTimeout(err) && !time.Now().Before(maxDeadline)
-			if hitMaxDeadline {
-				// Ignore timeouts when encountering deadline based on
-				// IdleTimeout
+			timedOut := isTimeout(err)
+			if timedOut {
+				// Ignore timeouts when using deadline based on IdleTimeout
 				err = nil
 			}
-			if n == 0 || !hitMaxDeadline {
+			if n == 0 || !timedOut {
 				return totalN, err
 			}
 			b = b[n:]
@@ -157,15 +147,8 @@ func (c *IdleTimingConn) Write(b []byte) (int, error) {
 	}
 }
 
-// Close this IdleTimingConn. This will close the underlying net.Conn as well,
-// returning the error from calling its Close method.
 func (c *IdleTimingConn) Close() error {
-	select {
-	case c.closedCh <- true:
-		// close accepted
-	default:
-		// already closing, ignore
-	}
+	c.closedCh <- true
 	return c.conn.Close()
 }
 
@@ -184,12 +167,12 @@ func (c *IdleTimingConn) SetDeadline(t time.Time) error {
 }
 
 func (c *IdleTimingConn) SetReadDeadline(t time.Time) error {
-	atomic.StoreInt64(&c.readDeadline, t.UnixNano())
+	c.readDeadline = &t
 	return nil
 }
 
 func (c *IdleTimingConn) SetWriteDeadline(t time.Time) error {
-	atomic.StoreInt64(&c.writeDeadline, t.UnixNano())
+	c.writeDeadline = &t
 	return nil
 }
 

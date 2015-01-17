@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/getlantern/peerscanner",
-	"GoVersion": "go1.3.3",
+	"GoVersion": "go1.4",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go-uuid/uuid",
@@ -13,32 +13,32 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/connpool",
-			"Rev": "93a5a656de423aaa385c85f89f0c98275bfdad50"
+			"Rev": "8c6e3630122125c54912d9303d1660404ea2fe5b"
 		},
 		{
 			"ImportPath": "github.com/getlantern/enproxy",
-			"Rev": "6d425f064d94570c4dcbcb4624db29442cea271d"
+			"Rev": "cdccfcd4e150c95653225d2ff7090a2c6c349a4a"
 		},
 		{
 			"ImportPath": "github.com/getlantern/fronted",
-			"Rev": "9171b04f2de39849b96b1bc89f43d3f8e7aa6d8a"
+			"Rev": "ea89fe6bc0fd85436a7ac9dbb1f617bda6fbeb88"
 		},
 		{
 			"ImportPath": "github.com/getlantern/golog",
-			"Rev": "d4e9fd6a3014c996ee111b01750c8a03864201b2"
+			"Rev": "8c6e3630122125c54912d9303d1660404ea2fe5b"
 		},
 		{
 			"ImportPath": "github.com/getlantern/idletiming",
-			"Rev": "d70a5cb2770ad7277d75a6886c3b9abcf7486697"
+			"Rev": "d990c93cf41295b5224e834bb8b48acc9ec03553"
 		},
 		{
 			"ImportPath": "github.com/getlantern/keyman",
-			"Rev": "72c381cc2f3600740b0ad3e0d5542a7512b45d0c"
+			"Rev": "7cfda65f2c97276bf53e680bdff30224b8f904ae"
 		},
 		{
 			"ImportPath": "github.com/getlantern/tlsdialer",
-			"Comment": "v2.0.11-10-g1c2f41c",
-			"Rev": "1c2f41c89a452e49dc6adb8424b715029648d07e"
+			"Comment": "v2.0.11-6-gb2eb10a",
+			"Rev": "b2eb10a625ca22b521a91451a061c05a8a8c4bcc"
 		}
 	]
 }

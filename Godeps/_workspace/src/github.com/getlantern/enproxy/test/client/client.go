@@ -34,7 +34,12 @@ func main() {
 				},
 				Transport: &http.Transport{
 					Dial: func(network string, addr string) (net.Conn, error) {
-						return enproxy.Dial(addr, enproxyConfig)
+						conn := &enproxy.Conn{
+							Addr:   addr,
+							Config: enproxyConfig,
+						}
+						conn.Connect()
+						return conn, nil
 					},
 				},
 			},

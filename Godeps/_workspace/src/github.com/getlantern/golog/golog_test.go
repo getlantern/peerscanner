@@ -2,7 +2,6 @@ package golog
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"testing"
 	"time"
@@ -12,7 +11,7 @@ import (
 
 var (
 	expectedLog      = "myprefix: Hello world\nmyprefix: Hello 5\n"
-	expectedTraceLog = expectedLog + "myprefix: Gravy\nmyprefix: TraceWriter closed due to unexpected error: EOF\n"
+	expectedTraceLog = expectedLog + "myprefix: Gravy\n"
 )
 
 func TestDebug(t *testing.T) {
@@ -48,9 +47,7 @@ func TestTraceEnabled(t *testing.T) {
 	l.(*logger).debugOut = out
 	l.Trace("Hello world")
 	l.Tracef("Hello %d", 5)
-	tw := l.TraceOut()
-	tw.Write([]byte("Gravy\n"))
-	tw.(io.Closer).Close()
+	l.TraceOut().Write([]byte("Gravy\n"))
 
 	// Give trace writer a moment to catch up
 	time.Sleep(50 * time.Millisecond)

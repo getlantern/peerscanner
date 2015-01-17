@@ -25,7 +25,7 @@ func ExampleListener() {
 		log.Fatalf("Unable to listen %s", err)
 	}
 
-	il := Listener(l, 5*time.Second, func(conn net.Conn) {
+	il := Listener(l, 5*time.Second, func() {
 		log.Printf("Connection was idled")
 	})
 
