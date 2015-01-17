@@ -13,7 +13,7 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/cloudflare",
-			"Rev": "f1c0d7ccb4c4f8071ff264ce9d4988758efa6b60"
+			"Rev": "1e54e206a9fe790be024504d12f971f85c630168"
 		},
 		{
 			"ImportPath": "github.com/getlantern/connpool",
