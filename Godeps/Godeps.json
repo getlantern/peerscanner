@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/getlantern/peerscanner",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.4.1",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go-uuid/uuid",
@@ -29,7 +29,7 @@
 		},
 		{
 			"ImportPath": "github.com/getlantern/idletiming",
-			"Rev": "d990c93cf41295b5224e834bb8b48acc9ec03553"
+			"Rev": "d70a5cb2770ad7277d75a6886c3b9abcf7486697"
 		},
 		{
 			"ImportPath": "github.com/getlantern/keyman",
