@@ -5,7 +5,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/getlantern/nattywad"
+	"github.com/getlantern/golog"
+)
+
+var (
+	log = golog.LoggerFor("flashlight.client")
 )
 
 // ClientConfig captures configuration information for a Client
@@ -13,7 +17,6 @@ type ClientConfig struct {
 	DumpHeaders    bool // whether or not to dump headers of requests and responses
 	Servers        []*ServerInfo
 	MasqueradeSets map[string][]*Masquerade
-	Peers          []*nattywad.ServerPeer
 }
 
 // ServerInfo captures configuration information for an upstream server
