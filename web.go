@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -49,6 +50,7 @@ func forward(w http.ResponseWriter, request *http.Request, dest string) {
 				InsecureSkipVerify: true,
 			},
 		},
+		Timeout: 60 * time.Second,
 	}
 	req, err := http.NewRequest("POST", dest, nil)
 	if err != nil {
