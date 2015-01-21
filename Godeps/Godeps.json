@@ -36,6 +36,10 @@
 			"Rev": "7cfda65f2c97276bf53e680bdff30224b8f904ae"
 		},
 		{
+			"ImportPath": "github.com/getlantern/tlsdefaults",
+			"Rev": "03d5e3ad866073004905708e81ed1da53c4a4c20"
+		},
+		{
 			"ImportPath": "github.com/getlantern/tlsdialer",
 			"Comment": "v2.0.11-6-gb2eb10a",
 			"Rev": "b2eb10a625ca22b521a91451a061c05a8a8c4bcc"
