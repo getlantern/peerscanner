@@ -3,10 +3,12 @@ package idletiming
 import (
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/getlantern/fdcount"
 )
 
 var (
@@ -21,8 +23,13 @@ var (
 )
 
 func TestWrite(t *testing.T) {
-	listenerIdled := false
-	connIdled := false
+	_, fdc, err := fdcount.Matching("TCP")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listenerIdled := int32(0)
+	connIdled := int32(0)
 
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -30,10 +37,18 @@ func TestWrite(t *testing.T) {
 	}
 
 	addr := l.Addr().String()
-	il := Listener(l, serverTimeout, func() {
-		listenerIdled = true
-		log.Printf("Listener idled")
+	il := Listener(l, serverTimeout, func(conn net.Conn) {
+		atomic.StoreInt32(&listenerIdled, 1)
+		conn.Close()
 	})
+	defer func() {
+		il.Close()
+		time.Sleep(1 * time.Second)
+		err = fdc.AssertDelta(0)
+		if err != nil {
+			t.Errorf("File descriptors didn't return to original: %s", err)
+		}
+	}()
 
 	go func() {
 		conn, err := il.Accept()
@@ -54,7 +69,8 @@ func TestWrite(t *testing.T) {
 	conn = &slowConn{orig: conn, targetDuration: slightlyLessThanClientTimeout}
 
 	c := Conn(conn, clientTimeout, func() {
-		connIdled = true
+		atomic.StoreInt32(&connIdled, 1)
+		conn.Close()
 	})
 
 	// Write messages
@@ -63,7 +79,6 @@ func TestWrite(t *testing.T) {
 		if err != nil || n != len(msg) {
 			t.Fatalf("Problem writing.  n: %d  err: %s", n, err)
 		}
-		time.Sleep(slightlyLessThanClientTimeout)
 	}
 
 	// Now write msg with a really short deadline
@@ -78,7 +93,7 @@ func TestWrite(t *testing.T) {
 	}
 
 	time.Sleep(slightlyMoreThanClientTimeout)
-	if connIdled == false {
+	if connIdled == 0 {
 		t.Errorf("Conn failed to idle!")
 	}
 
@@ -88,23 +103,37 @@ func TestWrite(t *testing.T) {
 	}
 
 	time.Sleep(9 * slightlyMoreThanClientTimeout)
-	if listenerIdled == false {
+	if listenerIdled == 0 {
 		t.Errorf("Listener failed to idle!")
 	}
 }
 
 func TestRead(t *testing.T) {
-	listenerIdled := false
-	connIdled := false
+	_, fdc, err := fdcount.Matching("TCP")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listenerIdled := int32(0)
+	connIdled := int32(0)
 
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatalf("Unable to listen: %s", err)
 	}
 
-	il := Listener(l, serverTimeout, func() {
-		listenerIdled = true
+	il := Listener(l, serverTimeout, func(conn net.Conn) {
+		atomic.StoreInt32(&listenerIdled, 1)
+		conn.Close()
 	})
+	defer func() {
+		il.Close()
+		time.Sleep(1 * time.Second)
+		err = fdc.AssertDelta(0)
+		if err != nil {
+			t.Errorf("File descriptors didn't return to original: %s", err)
+		}
+	}()
 
 	addr := l.Addr().String()
 
@@ -120,32 +149,32 @@ func TestRead(t *testing.T) {
 				if err != nil {
 					return
 				}
-				time.Sleep(slightlyLessThanClientTimeout)
 			}
 		}()
 	}()
 
-	c, err := net.Dial("tcp", addr)
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		t.Fatalf("Unable to dial %s: %s", addr, err)
 	}
 
-	c = &slowConn{orig: c, targetDuration: slightlyLessThanClientTimeout}
+	conn = &slowConn{orig: conn, targetDuration: slightlyLessThanClientTimeout}
 
-	c = Conn(c, clientTimeout, func() {
-		connIdled = true
+	c := Conn(conn, clientTimeout, func() {
+		atomic.StoreInt32(&connIdled, 1)
+		conn.Close()
 	})
 
-	// Read messages
-	b := make([]byte, 1024)
+	// Read messages (we use a buffer matching the message size to make sure
+	// that each iterator of the below loop actually has something to read).
+	b := make([]byte, len(msg))
 	totalN := 0
 	for i := 0; i < dataLoops; i++ {
 		n, err := c.Read(b)
 		if err != nil {
-			t.Fatalf("Problem reading.  err: %s", n, err)
+			t.Fatalf("Problem reading. Read %d bytes, err: %s", n, err)
 		}
 		totalN += n
-		time.Sleep(slightlyLessThanClientTimeout)
 	}
 
 	if totalN == 0 {
@@ -164,13 +193,44 @@ func TestRead(t *testing.T) {
 	}
 
 	time.Sleep(slightlyMoreThanClientTimeout)
-	if connIdled == false {
+	if connIdled == 0 {
 		t.Errorf("Conn failed to idle!")
 	}
 
 	time.Sleep(9 * slightlyMoreThanClientTimeout)
-	if listenerIdled == false {
+	if listenerIdled == 0 {
 		t.Errorf("Listener failed to idle!")
+	}
+}
+
+func TestClose(t *testing.T) {
+	_, fdc, err := fdcount.Matching("TCP")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("Unable to listen: %s", err)
+	}
+	defer func() {
+		l.Close()
+		time.Sleep(1 * time.Second)
+		err = fdc.AssertDelta(0)
+		if err != nil {
+			t.Errorf("File descriptors didn't return to original: %s", err)
+		}
+	}()
+
+	addr := l.Addr().String()
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("Unable to dial %s: %s", addr, err)
+	}
+
+	c := Conn(conn, clientTimeout, func() {})
+	for i := 0; i < 100; i++ {
+		c.Close()
 	}
 }
 
@@ -194,7 +254,9 @@ func (c *slowConn) Read(b []byte) (int, error) {
 	if sleepTime <= 0 && err == nil {
 		err = timeoutError("slowConn timeout")
 	}
-	time.Sleep(sleepTime)
+	if n > 0 {
+		time.Sleep(sleepTime)
+	}
 	return n, err
 }
 
@@ -209,7 +271,9 @@ func (c *slowConn) Write(b []byte) (int, error) {
 	if sleepTime <= 0 && err == nil {
 		err = timeoutError("slowConn timeout")
 	}
-	time.Sleep(sleepTime)
+	if n > 0 {
+		time.Sleep(sleepTime)
+	}
 	return n, err
 }
 

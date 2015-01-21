@@ -147,7 +147,7 @@ func (key *PrivateKey) TLSCertificateFor(
 	issuer *Certificate) (cert *Certificate, err error) {
 
 	template := &x509.Certificate{
-		SerialNumber: new(big.Int).SetInt64(int64(time.Now().Nanosecond())),
+		SerialNumber: new(big.Int).SetInt64(int64(time.Now().UnixNano())),
 		Subject: pkix.Name{
 			Organization: []string{organization},
 			CommonName:   name,
@@ -194,12 +194,22 @@ func LoadCertificateFromFile(filename string) (*Certificate, error) {
 
 // LoadCertificateFromPEMBytes loads a Certificate from a byte array in PEM
 // format
-func LoadCertificateFromPEMBytes(pembytes []byte) (*Certificate, error) {
-	block, _ := pem.Decode(pembytes)
+func LoadCertificateFromPEMBytes(pemBytes []byte) (*Certificate, error) {
+	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, fmt.Errorf("Unable to decode PEM encoded certificate")
 	}
 	return bytesToCert(block.Bytes)
+}
+
+// LoadCertificateFromX509 loads a Certificate from an x509.Certificate
+func LoadCertificateFromX509(cert *x509.Certificate) (*Certificate, error) {
+	pemBytes := pem.EncodeToMemory(&pem.Block{
+		Type:    "CERTIFICATE",
+		Headers: nil,
+		Bytes:   cert.Raw,
+	})
+	return LoadCertificateFromPEMBytes(pemBytes)
 }
 
 // X509 returns the x509 certificate underlying this Certificate
@@ -252,6 +262,20 @@ func (cert *Certificate) PoolContainingCert() *x509.CertPool {
 	pool := x509.NewCertPool()
 	pool.AddCert(cert.cert)
 	return pool
+}
+
+// PoolContainingCerts constructs a CertPool containing all of the given certs
+// (PEM encoded).
+func PoolContainingCerts(certs ...string) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	for _, cert := range certs {
+		c, err := LoadCertificateFromPEMBytes([]byte(cert))
+		if err != nil {
+			return nil, err
+		}
+		pool.AddCert(c.cert)
+	}
+	return pool, nil
 }
 
 func (cert *Certificate) ExpiresBefore(time time.Time) bool {

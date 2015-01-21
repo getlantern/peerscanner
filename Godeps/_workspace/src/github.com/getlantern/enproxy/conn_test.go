@@ -4,26 +4,38 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"strings"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/getlantern/keyman"
+
+	"github.com/getlantern/testify/assert"
+	. "github.com/getlantern/waitforserver"
 )
 
 const (
-	PROXY_ADDR    = "localhost:13091"
-	EXPECTED_TEXT = "Google is built by a large team of engineers, designers, researchers, robots, and others in many different sites across the globe. It is updated continuously, and built with more tools and technologies than we can shake a stick at. If you'd like to help us out, see google.com/careers."
-	HR            = "----------------------------"
+	TEXT = "Hello byte counting world"
+	HR   = "----------------------------"
 )
 
 var (
-	proxyStarted  = false
+	pk   *keyman.PrivateKey
+	cert *keyman.Certificate
+)
+
+var (
+	proxyAddr     = ""
+	httpAddr      = ""
+	httpsAddr     = ""
 	bytesReceived = int64(0)
 	bytesSent     = int64(0)
+	destsReceived = make(map[string]bool)
+	destsSent     = make(map[string]bool)
+	statMutex     sync.Mutex
 )
 
 func TestPlainTextStreaming(t *testing.T) {
@@ -42,65 +54,87 @@ func TestTLSBuffered(t *testing.T) {
 	doTestTLS(true, t)
 }
 
-func doTestPlainText(buffered bool, t *testing.T) {
-	startProxy(t)
+func TestBadStreaming(t *testing.T) {
+	doTestBad(false, t)
+}
 
-	conn := prepareConn(80, buffered, t)
+func TestBadBuffered(t *testing.T) {
+	doTestBad(true, t)
+}
+
+func doTestPlainText(buffered bool, t *testing.T) {
+	startServers(t)
+
+	conn, err := prepareConn(httpAddr, buffered, false, t)
+	if err != nil {
+		t.Fatalf("Unable to prepareConn: %s", err)
+	}
 	defer conn.Close()
 
 	doRequests(conn, t)
 
-	if bytesReceived != 226 {
-		t.Errorf("Bytes received of %d did not match expected %d", bytesReceived, 226)
-	}
-	if bytesSent != 1336 {
-		t.Errorf("Bytes sent of %d did not match expected %d", bytesSent, 1336)
-	}
+	assert.Equal(t, 226, bytesReceived, "Wrong number of bytes received")
+	assert.Equal(t, 284, bytesSent, "Wrong number of bytes sent")
+	assert.True(t, destsSent[httpAddr], "http address wasn't recorded as sent destination")
+	assert.True(t, destsReceived[httpAddr], "http address wasn't recorded as received destination")
 }
 
 func doTestTLS(buffered bool, t *testing.T) {
-	startProxy(t)
+	startServers(t)
 
-	conn := prepareConn(443, buffered, t)
+	conn, err := prepareConn(httpsAddr, buffered, false, t)
+	if err != nil {
+		t.Fatalf("Unable to prepareConn: %s", err)
+	}
 
 	tlsConn := tls.Client(conn, &tls.Config{
-		ServerName: "www.google.com",
+		ServerName: "localhost",
+		RootCAs:    cert.PoolContainingCert(),
 	})
 	defer tlsConn.Close()
 
-	err := tlsConn.Handshake()
+	err = tlsConn.Handshake()
 	if err != nil {
 		t.Fatalf("Unable to handshake: %s", err)
 	}
 
 	doRequests(tlsConn, t)
 
-	if bytesReceived != 555 {
-		t.Errorf("Bytes received of %d did not match expected %d", bytesReceived, 555)
-	}
-	if bytesSent != 4968 {
-		t.Errorf("Bytes sent of %d did not match expected %d", bytesSent, 4968)
+	assert.True(t, destsSent[httpsAddr], "https address wasn't recorded as sent destination")
+	assert.True(t, destsReceived[httpsAddr], "https address wasn't recorded as received destination")
+}
+
+func doTestBad(buffered bool, t *testing.T) {
+	startServers(t)
+
+	conn, err := prepareConn(httpAddr, buffered, true, t)
+	if err == nil {
+		defer conn.Close()
+		t.Error("Bad conn should have returned error on Connect()")
 	}
 }
 
-func prepareConn(port int, buffered bool, t *testing.T) (conn *Conn) {
-	addr := fmt.Sprintf("%s:%d", "www.google.com", port)
+func prepareConn(addr string, buffered bool, fail bool, t *testing.T) (conn *Conn, err error) {
 	conn = &Conn{
 		Addr: addr,
 		Config: &Config{
 			DialProxy: func(addr string) (net.Conn, error) {
-				return net.Dial("tcp", PROXY_ADDR)
+				proto := "tcp"
+				if fail {
+					proto = "fakebad"
+				}
+				return net.Dial(proto, proxyAddr)
 			},
 			NewRequest: func(host string, method string, body io.Reader) (req *http.Request, err error) {
 				if host == "" {
-					host = PROXY_ADDR
+					host = proxyAddr
 				}
 				return http.NewRequest(method, "http://"+host, body)
 			},
 			BufferRequests: buffered,
 		},
 	}
-	conn.Connect()
+	err = conn.Connect()
 	return
 }
 
@@ -142,51 +176,120 @@ func readResponse(conn net.Conn, req *http.Request, t *testing.T) {
 		t.Fatalf("Unable to read response body: %s", err)
 	}
 	text := string(buff.Bytes())
-	if !strings.Contains(text, EXPECTED_TEXT) {
-		t.Errorf("Resulting string did not contain expected text.\nExpected:\n%s\n%s\nReceived:\n%s", EXPECTED_TEXT, HR, text, HR)
-	}
+	assert.Contains(t, text, TEXT, "Wrong text returned from server")
+}
+
+func startServers(t *testing.T) {
+	startHttpServer(t)
+	startHttpsServer(t)
+	startProxy(t)
 }
 
 func startProxy(t *testing.T) {
-	if proxyStarted {
-		atomic.StoreInt64(&bytesReceived, 0)
-		atomic.StoreInt64(&bytesSent, 0)
+	if proxyAddr != "" {
+		statMutex.Lock()
+		bytesReceived = 0
+		bytesSent = 0
+		destsReceived = make(map[string]bool)
+		destsReceived = make(map[string]bool)
+		statMutex.Unlock()
 		return
 	}
 
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("Proxy unable to listen: %v", err)
+	}
+	proxyAddr = l.Addr().String()
+
 	go func() {
 		proxy := &Proxy{
-			OnBytesReceived: func(clientIp string, bytes int64) {
-				bytesReceived = atomic.AddInt64(&bytesReceived, bytes)
+			OnBytesReceived: func(clientIp string, destAddr string, req *http.Request, bytes int64) {
+				statMutex.Lock()
+				bytesReceived += bytes
+				destsReceived[destAddr] = true
+				statMutex.Unlock()
 			},
-			OnBytesSent: func(clientIp string, bytes int64) {
-				bytesSent = atomic.AddInt64(&bytesSent, bytes)
+			OnBytesSent: func(clientIp string, destAddr string, req *http.Request, bytes int64) {
+				statMutex.Lock()
+				bytesSent += bytes
+				destsSent[destAddr] = true
+				statMutex.Unlock()
 			},
 		}
-		err := proxy.ListenAndServe(PROXY_ADDR)
+		err := proxy.Serve(l)
 		if err != nil {
-			t.Fatalf("Unable to listen and serve: %s", err)
+			t.Fatalf("Proxy unable to serve: %s", err)
 		}
 	}()
-	waitForServer(PROXY_ADDR, 1*time.Second, t)
-	proxyStarted = true
+
+	if err := WaitForServer("tcp", proxyAddr, 1*time.Second); err != nil {
+		t.Fatal(err)
+	}
 }
 
-// waitForServer waits for a TCP server to start at the given address, waiting
-// up to the given limit and reporting an error to the given testing.T if the
-// server didn't start within the time limit.
-func waitForServer(addr string, limit time.Duration, t *testing.T) {
-	cutoff := time.Now().Add(limit)
-	for {
-		if time.Now().After(cutoff) {
-			t.Errorf("Server never came up at address %s", addr)
-			return
+func startHttpServer(t *testing.T) {
+	if httpAddr != "" {
+		return
+	}
+
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("HTTP unable to listen: %v", err)
+	}
+	httpAddr = l.Addr().String()
+
+	doStartServer(t, l)
+}
+
+func startHttpsServer(t *testing.T) {
+	if httpsAddr != "" {
+		return
+	}
+
+	var err error
+
+	pk, err = keyman.GeneratePK(2048)
+	if err != nil {
+		t.Fatalf("Unable to generate key: %s", err)
+	}
+
+	// Generate self-signed certificate
+	cert, err = pk.TLSCertificateFor("tlsdialer", "localhost", time.Now().Add(1*time.Hour), true, nil)
+	if err != nil {
+		t.Fatalf("Unable to generate cert: %s", err)
+	}
+
+	keypair, err := tls.X509KeyPair(cert.PEMEncoded(), pk.PEMEncoded())
+	if err != nil {
+		t.Fatalf("Unable to generate x509 key pair: %s", err)
+	}
+
+	l, err := tls.Listen("tcp", "localhost:0", &tls.Config{
+		Certificates: []tls.Certificate{keypair},
+	})
+	if err != nil {
+		t.Fatalf("HTTP unable to listen: %v", err)
+	}
+	httpsAddr = l.Addr().String()
+
+	doStartServer(t, l)
+}
+
+func doStartServer(t *testing.T, l net.Listener) {
+	go func() {
+		httpServer := &http.Server{
+			Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+				resp.Write([]byte(TEXT))
+			}),
 		}
-		c, err := net.DialTimeout("tcp", addr, limit)
-		if err == nil {
-			c.Close()
-			return
+		err := httpServer.Serve(l)
+		if err != nil {
+			t.Fatalf("Unable to start http server: %s", err)
 		}
-		time.Sleep(10 * time.Millisecond)
+	}()
+
+	if err := WaitForServer("tcp", l.Addr().String(), 1*time.Second); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -3,15 +3,14 @@ package main
 import (
 	"fmt"
 	"github.com/getlantern/cloudflare"
+	"github.com/getlantern/fronted"
+	"github.com/getlantern/peerscanner/common"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/getlantern/flashlight/client"
-	"github.com/getlantern/peerscanner/common"
 )
 
 var (
@@ -73,7 +72,7 @@ func testHosts() {
 	)
 
 	allPeers := 0
-	allFallbacks := 0
+	allFlashlight := 0
 	hosts := make([]*host, 0)
 	for _, record := range recs {
 		// We just check the length of the subdomain here, which is the unique
@@ -86,7 +85,7 @@ func testHosts() {
 		} else if strings.HasPrefix(record.Name, "fl-") {
 			//log.Println("SERVER: ", record.Name, record.Value)
 			hosts = append(hosts, &host{record, 10, false, fallbackGroups})
-			allFallbacks = allFallbacks + 1
+			allFlashlight = allFlashlight + 1
 		} else if record.Name == common.ROUNDROBIN {
 			//log.Println("IN ROUNDROBIN: ", record.Name, record.Value)
 			roundRobin.addExisting(record)
@@ -101,8 +100,8 @@ func testHosts() {
 		}
 	}
 
-	log.Printf("NUMBER OF FALLBACKS (verified / total): %d / %d", len(fallbacks.existing), allFallbacks)
-	log.Printf("NUMBER OF PEERS     (verified / total): %d / %d", len(peers.existing), allPeers)
+	log.Printf("FALLBACKS ROUNDROBIN: %v", len(fallbacks.existing))
+	log.Printf("PEERS ROUNDROBIN      %v", len(peers.existing))
 
 	var wg sync.WaitGroup
 	wg.Add(len(hosts))
@@ -247,14 +246,14 @@ func isPeer(r cloudflare.Record) bool {
 }
 
 func clientFor(upstreamHost string, masqueradeHost string, rootCA string) *http.Client {
+	d := fronted.NewDialer(&fronted.Config{
+		Host:               upstreamHost,
+		Port:               443,
+		DialTimeoutMillis:  5000,
+		InsecureSkipVerify: true,
+	})
 
-	serverInfo := &client.ServerInfo{
-		Host:              upstreamHost,
-		Port:              443,
-		DialTimeoutMillis: 5000,
-	}
-	masquerade := &client.Masquerade{masqueradeHost, rootCA}
-	httpClient := client.HttpClient(serverInfo, masquerade)
-
-	return httpClient
+	return d.HttpClientUsing(&fronted.Masquerade{
+		Domain: masqueradeHost,
+	})
 }
