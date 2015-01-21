@@ -1,0 +1,44 @@
+package tlsdialer
+
+import (
+	"fmt"
+	"net"
+	"os"
+	"runtime/pprof"
+	"sync"
+	"testing"
+	"time"
+)
+
+const (
+	filename = "memory.hprof"
+	iters    = 10000
+)
+
+func TestMemory(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(iters)
+	for i := 0; i < iters; i++ {
+		go func() {
+			DialWithDialer(
+				&net.Dialer{
+					Timeout: 5 * time.Minute,
+				},
+				"tcp",
+				"localhost:35234",
+				false,
+				nil)
+			fmt.Fprint(os.Stdout, ".")
+			wg.Done()
+		}()
+	}
+	time.Sleep(5 * time.Second)
+	f, err := os.Create(filename)
+	if err != nil {
+		log.Errorf("Unable to create file to save memprofile: %s", err)
+		return
+	}
+	log.Debugf("Saving heap profile to: %s", filename)
+	pprof.WriteHeapProfile(f)
+	f.Close()
+}
