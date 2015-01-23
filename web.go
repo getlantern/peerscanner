@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	XForwardedFor = "X-Forwarded-For"
+	XForwardedFor           = "X-Forwarded-For"
+	PeerscannerForwardedFor = "X-Peerscanner-Forwarded-For"
 )
 
 func main() {
@@ -58,7 +59,7 @@ func forward(w http.ResponseWriter, request *http.Request, dest string) {
 		w.WriteHeader(500)
 		return
 	}
-	req.Header.Set(XForwardedFor, clientIpFor(request))
+	req.Header.Set(PeerscannerForwardedFor, clientIpFor(request))
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Unexpected error forwarding request: %s", err)
